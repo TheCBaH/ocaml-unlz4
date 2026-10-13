@@ -1,0 +1,3 @@
+(executable
+ (name consumer)
+ (libraries unlz4))

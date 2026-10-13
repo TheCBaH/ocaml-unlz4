@@ -1,0 +1,77 @@
+; The test corpus, generated at build time: unlz4_ref.c, compiled against the vendor/lz4
+; submodule's lib/, writes the compressed fixtures and manifest.txt into corpus/, decoding each
+; back with the upstream safe decoders first. Needs `git submodule update --init vendor/lz4`.
+
+(rule
+ (target unlz4_ref.exe)
+ (deps
+  (glob_files %{project_root}/vendor/lz4/lib/*.h))
+ (action
+  (run
+   %{cc}
+   -I
+   %{project_root}/vendor/lz4/lib
+   -o
+   %{target}
+   %{dep:unlz4_ref.c}
+   %{dep:../../vendor/lz4/lib/lz4.c}
+   %{dep:../../vendor/lz4/lib/lz4hc.c}
+   %{dep:../../vendor/lz4/lib/lz4frame.c}
+   %{dep:../../vendor/lz4/lib/xxhash.c})))
+
+(rule
+ (targets
+  (dir corpus))
+ (action
+  (run %{dep:unlz4_ref.exe} corpus)))
+
+; The upstream fuzzer and frametest, run bounded by `dune build @reference-test`: they validate the
+; reference build, not this library.
+
+(rule
+ (target fuzzer.exe)
+ (deps
+  (glob_files %{project_root}/vendor/lz4/lib/*.h)
+  (glob_files %{project_root}/vendor/lz4/programs/*.h))
+ (action
+  (run
+   %{cc}
+   -I
+   %{project_root}/vendor/lz4/lib
+   -I
+   %{project_root}/vendor/lz4/programs
+   -o
+   %{target}
+   %{dep:../../vendor/lz4/tests/fuzzer.c}
+   %{dep:../../vendor/lz4/programs/util.c}
+   %{dep:../../vendor/lz4/lib/lz4.c}
+   %{dep:../../vendor/lz4/lib/lz4hc.c}
+   %{dep:../../vendor/lz4/lib/xxhash.c})))
+
+(rule
+ (target frametest.exe)
+ (deps
+  (glob_files %{project_root}/vendor/lz4/lib/*.h)
+  (glob_files %{project_root}/vendor/lz4/programs/*.h))
+ (action
+  (run
+   %{cc}
+   -I
+   %{project_root}/vendor/lz4/lib
+   -I
+   %{project_root}/vendor/lz4/programs
+   -o
+   %{target}
+   %{dep:../../vendor/lz4/tests/frametest.c}
+   %{dep:../../vendor/lz4/programs/util.c}
+   %{dep:../../vendor/lz4/lib/lz4.c}
+   %{dep:../../vendor/lz4/lib/lz4hc.c}
+   %{dep:../../vendor/lz4/lib/lz4frame.c}
+   %{dep:../../vendor/lz4/lib/xxhash.c})))
+
+(rule
+ (alias reference-test)
+ (action
+  (progn
+   (run %{dep:fuzzer.exe} -s1 -i100)
+   (run %{dep:frametest.exe} -s1 -i100))))

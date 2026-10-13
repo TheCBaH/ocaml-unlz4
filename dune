@@ -1,0 +1,4 @@
+; vendor/lz4 is the upstream reference checkout (a development-only submodule): never part of the
+; build, and not needed by it.
+
+(data_only_dirs vendor)

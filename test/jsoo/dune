@@ -1,0 +1,15 @@
+; The shared suite under js_of_ocaml and Node: `dune build @runtest-jsoo` (make test-js).
+
+(executable
+ (name main)
+ (modes js)
+ (libraries unlz4_tests unlz4_test_support)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
+
+(rule
+ (alias runtest-jsoo)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true))
+ (action
+  (run node %{dep:main.bc.js})))

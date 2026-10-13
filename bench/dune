@@ -1,0 +1,8 @@
+; Throughput over the corpus: `make bench` (native) and `make bench-js` (js_of_ocaml/Node).
+
+(executable
+ (name bench)
+ (modes native js)
+ (libraries unlz4 unlz4_test_support)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

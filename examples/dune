@@ -1,0 +1,24 @@
+; Native drivers over Unlz4.Frame.decompress_with: standard library channels and Unix file
+; descriptors. bytesrw/ has a Bytesrw adapter, js/ an asynchronous Node host.
+
+(executables
+ (names unlz4_cat unlz4_unix)
+ (libraries unlz4 unix)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true))
+ (deps
+  (:frame %{project_root}/test/reference/corpus/f-64k-linked.lz4))
+ (action
+  (progn
+   (with-stdout-to
+    cat.out
+    (run %{exe:unlz4_cat.exe} %{frame}))
+   (with-stdout-to
+    unix.out
+    (run %{exe:unlz4_unix.exe} %{frame}))
+   (run cmp cat.out unix.out))))

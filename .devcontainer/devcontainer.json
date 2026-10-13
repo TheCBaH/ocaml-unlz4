@@ -1,0 +1,36 @@
+// For format details, see https://aka.ms/devcontainer.json.
+{
+    "name": "unlz4 devcontainer",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": "true",
+            "username": "vscode",
+            "userUid": "1000",
+            "userGid": "1000",
+            "upgradePackages": "false"
+        },
+        "ghcr.io/thecbah/ocaml-features/ocaml:1": {
+            // CI sets OCAML_VERSION per matrix leg. bytesrw is only for the examples/bytesrw adapter.
+            "version": "${localEnv:OCAML_VERSION:4.14.4}",
+            "packages": "dune#3.24.2 js_of_ocaml#6.4.1 js_of_ocaml-compiler#6.4.1 ocamlformat#0.28.1 bytesrw",
+            // Melange comes in one variant per compiler (7.0.1-414, 7.0.1-54, ...); opam picks the
+            // one matching the switch, and skips it where none is installable.
+            "optional-packages": "melange"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ocamllabs.ocaml-platform"
+            ]
+        }
+    },
+    "remoteUser": "vscode",
+    // The vendor/lz4 submodule is needed by the tests (the corpus is generated from it); make deps
+    // installs the opam dependencies.
+    "postCreateCommand": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g) && git config --global --add safe.directory '*' && git submodule update --init && make deps",
+    "waitFor": "postCreateCommand"
+}

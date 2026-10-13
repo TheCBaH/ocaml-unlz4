@@ -1,0 +1,8 @@
+; The shared suite: the same assertions on every backend. Each runner (../native, ../jsoo,
+; ../../melange/test) passes Unlz4_tests.cases to Harness.run.
+
+(library
+ (name unlz4_tests)
+ (libraries unlz4 unlz4_test_support)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

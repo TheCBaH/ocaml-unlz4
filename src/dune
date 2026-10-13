@@ -1,0 +1,16 @@
+; The portable core: the OCaml standard library only. No Unix, C stubs, Bigarray or external hash
+; library, so the same sources build natively, under js_of_ocaml, and (through ../melange) Melange.
+
+(library
+ (name unlz4)
+ (public_name unlz4)
+ (private_modules
+  buf
+  xxh32
+  error
+  dictionary
+  limits
+  block_decoder
+  frame_decoder)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

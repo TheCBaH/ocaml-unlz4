@@ -1,0 +1,22 @@
+; An asynchronous Node host driving the incremental decoder: unlz4_js.bc.js exports
+; createDecoder(), stream.js feeds it chunks from fs.createReadStream. @runtest-jsoo checks that it
+; matches unlz4_cat on a corpus frame.
+
+(executable
+ (name unlz4_js)
+ (modes js)
+ (libraries unlz4 js_of_ocaml)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
+
+(rule
+ (alias runtest-jsoo)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true))
+ (deps
+  stream.js
+  unlz4_js.bc.js
+  (:frame %{project_root}/test/reference/corpus/f-64k-linked.lz4))
+ (action
+  (system
+   "node stream.js %{frame} > js.out && %{exe:../unlz4_cat.exe} %{frame} > native.out && cmp js.out native.out")))

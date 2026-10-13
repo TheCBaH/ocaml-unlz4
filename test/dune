@@ -1,0 +1,3 @@
+; consumer/ is a separate project built by `make consumer-test` against installed packages.
+
+(data_only_dirs consumer)

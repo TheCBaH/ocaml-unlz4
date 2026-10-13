@@ -1,0 +1,51 @@
+; A Bytesrw adapter (reader and writer filters) over Unlz4.Frame.decode, a cat built on it, and
+; its tests. Native only, and built only when bytesrw is installed (the cat is then a stub); it is
+; not part of the unlz4 package.
+
+(library
+ (name unlz4_bytesrw)
+ (modules unlz4_bytesrw)
+ (optional)
+ (libraries unlz4 bytesrw)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
+
+(executable
+ (name unlz4_bytesrw_cat)
+ (modules unlz4_bytesrw_cat)
+ (libraries
+  unlz4
+  (select
+   unlz4_bytesrw_cat.ml
+   from
+   (unlz4_bytesrw bytesrw -> unlz4_bytesrw_cat.bytesrw.ml)
+   (-> unlz4_bytesrw_cat.missing.ml)))
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
+
+(test
+ (name test_bytesrw)
+ (modules test_bytesrw)
+ (libraries unlz4 unlz4_bytesrw unlz4_test_support bytesrw)
+ (build_if
+  (and
+   (<> %{env:UNLZ4_MELANGE=false} true)
+   %{lib-available:bytesrw})))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (and
+   (<> %{env:UNLZ4_MELANGE=false} true)
+   %{lib-available:bytesrw}))
+ (deps
+  (:frame %{project_root}/test/reference/corpus/f-64k-linked.lz4))
+ (action
+  (progn
+   (with-stdout-to
+    bytesrw.out
+    (run %{exe:unlz4_bytesrw_cat.exe} %{frame}))
+   (with-stdout-to
+    cat.out
+    (run %{exe:../unlz4_cat.exe} %{frame}))
+   (run cmp bytesrw.out cat.out))))
