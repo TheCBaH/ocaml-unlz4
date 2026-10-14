@@ -23,7 +23,7 @@ let frame_args f =
 let decode_frame ?chunk ?out_cap f =
   let dictionary, resolve_dictionary = frame_args f in
   let o = Drive.frames ?dictionary ?resolve_dictionary ?chunk ?out_cap f.C.compressed in
-  (match o.Drive.result with Ok _ -> () | Error e -> failf "%s: %s" f.C.name (E.to_string e));
+  (match o.Drive.result with Ok _ -> () | Error e -> failf "%s: %s" f.C.name (show_error e));
   check_int ~msg:(f.C.name ^ " consumed") ~expected:(String.length f.C.compressed) o.Drive.consumed;
   check_string ~msg:f.C.name ~expected:(Lazy.force f.C.plain) o.Drive.output
 
@@ -67,10 +67,10 @@ let cases =
             let dictionary = dictionary_of f in
             (match Unlz4.Block.decompress ?dictionary ~max_output:n f.C.compressed with
             | Ok s -> check_string ~msg:f.C.name ~expected:plain s
-            | Error e -> failf "%s: %s" f.C.name (E.to_string e));
+            | Error e -> failf "%s: %s" f.C.name (show_error e));
             (match Unlz4.Block.decompress ?dictionary ~max_output:(n + 100) f.C.compressed with
             | Ok s -> check_string ~msg:f.C.name ~expected:plain s
-            | Error e -> failf "%s: %s" f.C.name (E.to_string e));
+            | Error e -> failf "%s: %s" f.C.name (show_error e));
             if n > 0 then
               match Unlz4.Block.decompress ?dictionary ~max_output:(n - 1) f.C.compressed with
               | Error e when E.kind e = E.Limit_exceeded -> ()
@@ -82,7 +82,7 @@ let cases =
             let dictionary, resolve_dictionary = frame_args f in
             match F.decompress ?dictionary ?resolve_dictionary f.C.compressed with
             | Ok s -> check_string ~msg:f.C.name ~expected:(Lazy.force f.C.plain) s
-            | Error e -> failf "%s: %s" f.C.name (E.to_string e))
+            | Error e -> failf "%s: %s" f.C.name (show_error e))
           C.frames);
     case "corpus: frames, fragmented input and output" (fun () ->
         List.iteri
@@ -158,7 +158,7 @@ let cases =
               with
               | Error e when E.kind e = E.Truncated_input -> ()
               | Ok _ -> failf "%s cut at %d: decoded" f.C.name k
-              | Error e -> failf "%s cut at %d: %s" f.C.name k (E.to_string e)
+              | Error e -> failf "%s cut at %d: %s" f.C.name k (show_error e)
             done)
           C.frames);
     case "corpus: corrupted block payload with block checksums" (fun () ->
@@ -174,7 +174,7 @@ let cases =
         Bytes.set b (second + 10) (Char.chr (Char.code s.[second + 10] lxor 1));
         match F.decompress (Bytes.to_string b) with
         | Error e ->
-            check ~msg:(E.to_string e) (E.kind e = E.Checksum_mismatch && E.block_index e = Some 1)
+            check ~msg:(show_error e) (E.kind e = E.Checksum_mismatch && E.block_index e = Some 1)
         | Ok _ -> failf "decoded");
     case "corpus: corrupted content checksum" (fun () ->
         let f = List.find (fun f -> f.C.name = "f-64k-linked") C.frames in
@@ -184,7 +184,7 @@ let cases =
         Bytes.set b (n - 1) (Char.chr (Char.code s.[n - 1] lxor 0x80));
         match F.decompress (Bytes.to_string b) with
         | Error e ->
-            check ~msg:(E.to_string e) (E.kind e = E.Checksum_mismatch && E.block_index e = None)
+            check ~msg:(show_error e) (E.kind e = E.Checksum_mismatch && E.block_index e = None)
         | Ok _ -> failf "decoded");
     case "corpus: random mutations fail safely" (fun () ->
         let r = Gen.rng 12 in

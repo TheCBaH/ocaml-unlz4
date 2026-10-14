@@ -22,7 +22,7 @@ let create_decoder () =
           Js_error.raise_
             (Js_error.of_error
                (Js.Unsafe.new_obj Js.error_constr
-                  [| Js.Unsafe.inject (Js.string (Unlz4.Error.to_string e)) |]))
+                  [| Js.Unsafe.inject (Js.string (Format.asprintf "%a" Unlz4.Error.pp e)) |]))
       | Ok { consumed; produced; status } -> (
           if produced > 0 then
             outputs := Typed_array.Bytes.to_uint8Array (Bytes.sub out 0 produced) :: !outputs;

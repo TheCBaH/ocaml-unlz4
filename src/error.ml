@@ -18,7 +18,7 @@ type t = {
   message : string;
 }
 
-let kind_to_string = function
+let kind_name = function
   | Invalid_block -> "invalid block"
   | Invalid_frame -> "invalid frame"
   | Truncated_input -> "truncated input"
@@ -29,12 +29,13 @@ let kind_to_string = function
   | Content_size_mismatch -> "content size mismatch"
   | Limit_exceeded -> "limit exceeded"
 
-let to_string e =
-  let where =
-    match (e.frame_index, e.block_index) with
-    | None, _ -> ""
-    | Some f, None -> Printf.sprintf ", frame %d" f
-    | Some f, Some b -> Printf.sprintf ", frame %d block %d" f b
-  in
-  Printf.sprintf "lz4: %s: %s (compressed offset %Ld, decoded offset %Ld%s)" (kind_to_string e.kind)
-    e.message e.compressed_offset e.decoded_offset where
+let pp_kind ppf k = Format.pp_print_string ppf (kind_name k)
+
+let pp ppf e =
+  Format.fprintf ppf "lz4: %a: %s (compressed offset %Ld, decoded offset %Ld" pp_kind e.kind
+    e.message e.compressed_offset e.decoded_offset;
+  (match (e.frame_index, e.block_index) with
+  | None, _ -> ()
+  | Some f, None -> Format.fprintf ppf ", frame %d" f
+  | Some f, Some b -> Format.fprintf ppf ", frame %d block %d" f b);
+  Format.pp_print_string ppf ")"

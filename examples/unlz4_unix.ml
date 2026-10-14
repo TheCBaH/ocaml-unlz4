@@ -16,8 +16,7 @@ let () =
         prerr_endline "usage: unlz4_unix [FILE]";
         exit 2
   in
-  match Unlz4.Frame.decompress_with ~read:(read fd) ~write:(write Unix.stdout) () with
-  | Ok () -> ()
-  | Error e ->
-      prerr_endline (Unlz4.Error.to_string e);
-      exit 1
+  Unlz4.Frame.decompress_with ~read:(read fd) ~write:(write Unix.stdout) ()
+  |> Result.iter_error (fun e ->
+      Format.eprintf "%a@." Unlz4.Error.pp e;
+      exit 1)

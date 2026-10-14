@@ -3,7 +3,10 @@ open Bytesrw
 type Bytes.Stream.error += Error of Unlz4.Error.t
 
 let format_error =
-  let message = function Error e -> Unlz4.Error.to_string e | _ -> "lz4: unknown error" in
+  let message = function
+    | Error e -> Format.asprintf "%a" Unlz4.Error.pp e
+    | _ -> "lz4: unknown error"
+  in
   Bytes.Stream.make_format_error ~format:"lz4" ~case:(fun e -> Error e) ~message
 
 (* The filter's own position must stay within [max_int]: bound the decoder's output to what is

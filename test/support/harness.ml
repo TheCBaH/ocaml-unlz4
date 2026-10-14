@@ -29,6 +29,9 @@ let check_int32 ?(msg = "int32") ~expected actual =
   if not (Int32.equal expected actual) then
     failf "%s: expected 0x%08lx, got 0x%08lx" msg expected actual
 
+let show_error e = Format.asprintf "%a" Unlz4.Error.pp e
+let show_kind k = Format.asprintf "%a" Unlz4.Error.pp_kind k
+
 let raises_invalid_arg ?(msg = "Invalid_argument") f =
   match f () with exception Invalid_argument _ -> () | _ -> failf "%s: no Invalid_argument" msg
 

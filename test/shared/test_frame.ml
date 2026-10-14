@@ -21,7 +21,7 @@ let frame_of ?(f = b) s = Builder.frame ~f ~content:s [ Builder.Compressed (lb s
 let hello = frame_of "hello, world"
 
 let check_kind kind e =
-  if E.kind e <> kind then failf "expected %s, got %s" (E.kind_to_string kind) (E.to_string e)
+  if E.kind e <> kind then failf "expected %s, got %s" (show_kind kind) (show_error e)
 
 let cases =
   [
@@ -30,7 +30,7 @@ let cases =
     case "frame: decompress whole buffer" (fun () ->
         match F.decompress (hello ^ hello) with
         | Ok s -> check_string ~expected:"hello, worldhello, world" s
-        | Error e -> failf "%s" (E.to_string e));
+        | Error e -> failf "%s" (show_error e));
     case "frame: stored blocks, and an empty stored block is not the end mark" (fun () ->
         let f = Builder.frame [ Builder.Stored "abc"; Builder.Stored ""; Builder.Stored "def" ] in
         check_string ~expected:"abcdef" (D.ok f));
@@ -41,7 +41,7 @@ let cases =
             check_string ~expected:s (D.ok (frame_of ~f:{ b with bd_code = code } s));
             match F.decompress (frame_of ~f:{ b with bd_code = code } "") with
             | Ok _ -> ()
-            | Error e -> failf "%s" (E.to_string e))
+            | Error e -> failf "%s" (show_error e))
           [ 4; 5; 6; 7 ]);
     case "frame: info" (fun () ->
         let f =
@@ -212,7 +212,7 @@ let cases =
             F.decode d ~src ~src_off:off ~src_len:len ~eof:true ~dst ~dst_off:0 ~dst_len:100 ()
           with
           | Ok p -> p
-          | Error e -> failf "%s" (E.to_string e)
+          | Error e -> failf "%s" (show_error e)
         in
         let n = String.length hello in
         let p = call 0 (2 * n) in
@@ -368,7 +368,7 @@ let cases =
             F.decode d ~src ~src_off:off ~src_len:len ~eof:false ~dst ~dst_off:0 ~dst_len:16 ()
           with
           | Ok p -> check_int ~msg:"all consumed" ~expected:len p.F.consumed
-          | Error e -> failf "%s" (E.to_string e)
+          | Error e -> failf "%s" (show_error e)
         in
         let chunk = Bytes.make (1 lsl 20) 'x' in
         let skip_size = 0xFFFFFFFFL in

@@ -3,17 +3,17 @@ open Harness
 module B = Unlz4.Block
 module E = Unlz4.Error
 
-let kind_name k = E.kind_to_string k
+let kind_name k = show_kind k
 
 let ok ?dictionary ?(max_output = 1 lsl 20) block =
   match B.decompress ?dictionary ~max_output block with
   | Ok s -> s
-  | Error e -> failf "unexpected error: %s" (E.to_string e)
+  | Error e -> failf "unexpected error: %s" (show_error e)
 
 let fails ?dictionary ?(max_output = 1 lsl 20) kind block =
   match B.decompress ?dictionary ~max_output block with
   | Ok _ -> failf "expected %s, decoded successfully" (kind_name kind)
-  | Error e -> if E.kind e <> kind then failf "expected %s, got %s" (kind_name kind) (E.to_string e)
+  | Error e -> if E.kind e <> kind then failf "expected %s, got %s" (kind_name kind) (show_error e)
 
 let roundtrip ?history ?dictionary seqs =
   check_string ~expected:(Builder.expand ?history seqs) (ok ?dictionary (Builder.block seqs))
@@ -73,7 +73,7 @@ let cases =
             ~src_len:(Bytes.length block - 4)
             ~dst ~dst_off:7 ~dst_len:80 ()
         with
-        | Error e -> failf "%s" (E.to_string e)
+        | Error e -> failf "%s" (show_error e)
         | Ok n ->
             check_int ~expected:(String.length expected) n;
             check_string ~expected (Bytes.sub_string dst 7 n);
@@ -132,7 +132,7 @@ let cases =
           let seqs = random_seqs r ~history_len:0 in
           match B.decompress ~max_output:(1 lsl 22) (Builder.block seqs) with
           | Ok s -> check_string ~msg:(Printf.sprintf "case %d" i) ~expected:(Builder.expand seqs) s
-          | Error e -> failf "case %d: %s" i (E.to_string e)
+          | Error e -> failf "case %d: %s" i (show_error e)
         done);
     case "block: random valid sequences after a dictionary" (fun () ->
         let r = Gen.rng 43 in
@@ -150,7 +150,7 @@ let cases =
               check_string ~msg:(Printf.sprintf "case %d" i)
                 ~expected:(Builder.expand ~history:kept seqs)
                 s
-          | Error e -> failf "case %d: %s" i (E.to_string e)
+          | Error e -> failf "case %d: %s" i (show_error e)
         done);
     case "block: invalid ranges and aliasing" (fun () ->
         let b = Bytes.of_string "\x00" and d = Bytes.create 4 in

@@ -35,7 +35,7 @@ let run ?limits ?dictionary ?resolve_dictionary ?(n = 65536) s =
 let ok ?msg ?n ~expected s =
   match run ?n s with
   | Ok (), out -> check_string ?msg ~expected out
-  | Error e, _ -> failf "%s" (E.to_string e)
+  | Error e, _ -> failf "%s" (show_error e)
 
 let error s = match run s with Ok (), _ -> failf "no error" | Error e, out -> (E.kind e, out)
 
@@ -58,7 +58,7 @@ let cases =
                 let r, out =
                   run ~dictionary:d ~resolve_dictionary:(fun _ -> Some d) f.C.compressed
                 in
-                (match r with Ok () -> () | Error e -> failf "%s: %s" f.C.name (E.to_string e));
+                (match r with Ok () -> () | Error e -> failf "%s: %s" f.C.name (show_error e));
                 check_string ~msg:f.C.name ~expected:(Lazy.force f.C.plain) out)
           C.frames);
     case "driver: output is written before a later error" (fun () ->
@@ -105,6 +105,6 @@ let cases =
         let write _ _ len = written := !written + len in
         (match F.decompress_with ~read ~write () with
         | Ok () -> ()
-        | Error e -> failf "%s" (E.to_string e));
+        | Error e -> failf "%s" (show_error e));
         check_int ~msg:"written" ~expected:total !written);
   ]

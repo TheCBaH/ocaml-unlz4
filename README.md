@@ -27,7 +27,7 @@ Compression is out of scope. See [docs/design.md](docs/design.md) for the design
 (* A whole buffer. *)
 match Unlz4.Frame.decompress compressed with
 | Ok plain -> print_string plain
-| Error e -> prerr_endline (Unlz4.Error.to_string e)
+| Error e -> Format.eprintf "%a@." Unlz4.Error.pp e
 
 (* Incrementally, e.g. as chunks arrive. *)
 let d = Unlz4.Frame.create ()
@@ -35,7 +35,7 @@ let out = Bytes.create 65536
 
 let rec feed src off len ~eof =
   match Unlz4.Frame.decode d ~src ~src_off:off ~src_len:len ~eof ~dst:out ~dst_off:0 ~dst_len:65536 () with
-  | Error e -> failwith (Unlz4.Error.to_string e)
+  | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e)
   | Ok { consumed; produced; status } -> (
       print_string (Bytes.sub_string out 0 produced);
       match status with
@@ -45,9 +45,8 @@ let rec feed src off len ~eof =
 
 (* Channels, or any blocking read/write pair. *)
 let () =
-  match Unlz4.Frame.decompress_with ~read:(input ic) ~write:(output oc) () with
-  | Ok () -> ()
-  | Error e -> prerr_endline (Unlz4.Error.to_string e)
+  Unlz4.Frame.decompress_with ~read:(input ic) ~write:(output oc) ()
+  |> Result.iter_error (Format.eprintf "%a@." Unlz4.Error.pp)
 
 (* Raw blocks carry no size: bound the output. *)
 let block = Unlz4.Block.decompress ~max_output:65536 raw_block

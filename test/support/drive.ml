@@ -60,7 +60,7 @@ let ok ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input =
   let o = frames ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input in
   match o.result with
   | Ok _ -> o.output
-  | Error e -> Harness.failf "unexpected error: %s" (Unlz4.Error.to_string e)
+  | Error e -> Harness.failf "unexpected error: %s" (Harness.show_error e)
 
 let error ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input =
   let o = frames ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input in
@@ -71,7 +71,7 @@ let error ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input =
 let fails ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap kind input =
   let e = error ?mode ?limits ?dictionary ?resolve_dictionary ?chunk ?out_cap input in
   if Unlz4.Error.kind e <> kind then
-    Harness.failf "expected %s, got %s" (Unlz4.Error.kind_to_string kind) (Unlz4.Error.to_string e)
+    Harness.failf "expected %s, got %s" (Harness.show_kind kind) (Harness.show_error e)
 
 (* Schedules from the repository PRNG, so they are the same on every backend and compiler. *)
 let random_schedule seed max =

@@ -4,7 +4,7 @@
 let frame = "\x04\x22\x4d\x18\x60\x40\x82\x0d\x00\x00\x00\xc0hello, world\x00\x00\x00\x00"
 
 let () =
-  let direct = match Unlz4.Frame.decompress frame with Ok s -> s | Error e -> failwith (Unlz4.Error.to_string e) in
+  let direct = match Unlz4.Frame.decompress frame with Ok s -> s | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e) in
   let fed = ref false and out = Buffer.create 16 in
   let read b off _ =
     if !fed then 0
@@ -15,6 +15,6 @@ let () =
   in
   (match Unlz4.Frame.decompress_with ~read ~write:(Buffer.add_subbytes out) () with
   | Ok () -> ()
-  | Error e -> failwith (Unlz4.Error.to_string e));
+  | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e));
   assert (direct = "hello, world" && Buffer.contents out = direct);
   print_endline "consumer: ok"

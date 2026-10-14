@@ -42,8 +42,13 @@ module Error : sig
   (** Zero-based index of the data block within the frame, when the error is in a block. *)
 
   val message : t -> string
-  val kind_to_string : kind -> string
-  val to_string : t -> string
+
+  val pp_kind : Format.formatter -> kind -> unit
+  (** E.g. [invalid block]. *)
+
+  val pp : Format.formatter -> t -> unit
+  (** One line: [lz4: kind: message (compressed offset C, decoded offset D, frame F block B)].
+      [Format.asprintf "%a" pp e] gives it as a string. *)
 end
 
 (** Dictionaries. *)

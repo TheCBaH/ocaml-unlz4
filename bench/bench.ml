@@ -37,13 +37,13 @@ let () =
             let dictionary = if has_id then None else dictionary in
             match Unlz4.Frame.decompress ?dictionary ?resolve_dictionary f.C.compressed with
             | Ok s -> assert (String.length s = String.length plain)
-            | Error e -> failwith (Unlz4.Error.to_string e))
+            | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e))
         | C.Block -> (
             match
               Unlz4.Block.decompress ?dictionary ~max_output:(String.length plain) f.C.compressed
             with
             | Ok _ -> ()
-            | Error e -> failwith (Unlz4.Error.to_string e))
+            | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e))
       in
       if String.length plain >= 50_000 then (
         let n, dt = measure run in

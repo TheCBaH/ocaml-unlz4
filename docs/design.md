@@ -206,7 +206,8 @@ module Unlz4 : sig
     val frame_index : t -> int option   (* modern frames, zero-based *)
     val block_index : t -> int option   (* data blocks within the frame *)
     val message : t -> string
-    val to_string : t -> string
+    val pp_kind : Format.formatter -> kind -> unit
+    val pp : Format.formatter -> t -> unit  (* one line; asprintf "%a" for a string *)
   end
 
   module Dictionary : sig

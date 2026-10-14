@@ -2,12 +2,11 @@
    standard library channels. *)
 
 let cat ic =
-  match Unlz4.Frame.decompress_with ~read:(input ic) ~write:(output stdout) () with
-  | Ok () -> ()
-  | Error e ->
+  Unlz4.Frame.decompress_with ~read:(input ic) ~write:(output stdout) ()
+  |> Result.iter_error (fun e ->
       flush stdout;
-      prerr_endline (Unlz4.Error.to_string e);
-      exit 1
+      Format.eprintf "%a@." Unlz4.Error.pp e;
+      exit 1)
 
 let () =
   set_binary_mode_out stdout true;
