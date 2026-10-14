@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Built by `make consumer-test` against the installed package only. *)
 
 (* An LZ4 frame of "hello, world": one literal-only block, no checksums. *)

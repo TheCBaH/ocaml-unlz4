@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Drives Unlz4.Frame.decode over an input with independent input-chunk and output-capacity
    schedules, checking the progress contract on every call. *)
 

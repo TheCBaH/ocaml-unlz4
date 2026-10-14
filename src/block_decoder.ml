@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* The raw-block decoder shared by Unlz4.Block and the frame decoder.
 
    The history of a block is [ext.[ext_off .. ext_off + ext_len - 1]] followed by

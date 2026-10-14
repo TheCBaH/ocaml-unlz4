@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* unlz4_unix [FILE]: writes the decompressed LZ4 frames of FILE (or stdin) to stdout, with Unix
    file descriptors. *)
 

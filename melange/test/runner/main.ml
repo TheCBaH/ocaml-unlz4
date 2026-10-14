@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 let () =
   exit
     (Unlz4_test_support.Harness.run ~backend:"melange"

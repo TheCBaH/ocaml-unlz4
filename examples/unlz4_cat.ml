@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* unlz4_cat [FILE...]: writes the decompressed LZ4 frames of each FILE (or stdin) to stdout, with
    standard library channels. *)
 

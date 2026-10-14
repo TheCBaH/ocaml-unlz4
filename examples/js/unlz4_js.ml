@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* createDecoder() returns { push(chunk: Uint8Array): Uint8Array[], finish(): Uint8Array[] }.
    The host awaits its own input and calls push for each chunk; outputs are copies, so they stay
    valid. Errors are thrown as JavaScript Errors. *)

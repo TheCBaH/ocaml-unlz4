@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* embed DIR: prints an OCaml module holding DIR/manifest.txt and the fixture files it lists, so
    every backend (including Melange, which has no file I/O) replays the same corpus. Fails if a
    listed file is missing or its size differs from the manifest. *)
