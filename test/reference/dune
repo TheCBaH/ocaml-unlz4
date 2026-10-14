@@ -1,0 +1,26 @@
+; The test corpus, generated at build time: unlz4_ref.c, compiled against the vendor/lz4
+; submodule's lib/, writes the compressed fixtures and manifest.txt into corpus/, decoding each
+; back with the upstream safe decoders first. Needs `git submodule update --init vendor/lz4`.
+
+(rule
+ (target unlz4_ref.exe)
+ (deps
+  (glob_files %{project_root}/vendor/lz4/lib/*.h))
+ (action
+  (run
+   %{cc}
+   -I
+   %{project_root}/vendor/lz4/lib
+   -o
+   %{target}
+   %{dep:unlz4_ref.c}
+   %{dep:../../vendor/lz4/lib/lz4.c}
+   %{dep:../../vendor/lz4/lib/lz4hc.c}
+   %{dep:../../vendor/lz4/lib/lz4frame.c}
+   %{dep:../../vendor/lz4/lib/xxhash.c})))
+
+(rule
+ (targets
+  (dir corpus))
+ (action
+  (run %{dep:unlz4_ref.exe} corpus)))

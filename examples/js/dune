@@ -16,7 +16,7 @@
  (deps
   stream.js
   unlz4_js.bc.js
-  (:frame %{project_root}/test/corpus/f-64k-linked.lz4))
+  (:frame %{project_root}/test/reference/corpus/f-64k-linked.lz4))
  (action
   (progn
    (with-stdout-to

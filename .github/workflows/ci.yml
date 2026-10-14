@@ -3,10 +3,11 @@ name: ci
 # Every leg runs inside the repository devcontainer (.devcontainer/), built by
 # TheCBaH/devcontainer-action and cached in the repository's container registry.
 #
-# The 64-bit legs ("full") also run the js_of_ocaml and Melange suites, the upstream reference
-# build and corpus reproducibility, the installed-consumer build and the release-archive test.
-# The 32-bit legs run the native suite without the vendor/lz4 submodule; they are the ones that
-# prove 31-bit native-int safety.
+# Every leg checks out the vendor/lz4 submodule: the test corpus is generated from it at build
+# time. The 64-bit legs ("full") also run the js_of_ocaml and Melange suites, the upstream
+# fuzzer/frametest, the installed-consumer build and the release-archive test. The 32-bit legs run
+# the native suite, which proves 31-bit native-int safety, on a corpus compressed by the 32-bit
+# build of upstream LZ4.
 
 on:
   push:
@@ -47,7 +48,7 @@ jobs:
     - name: checkout
       uses: actions/checkout@v7
       with:
-        submodules: ${{ matrix.full }}
+        submodules: true
     - name: devcontainer
       uses: TheCBaH/devcontainer-action/devcontainer@v1
       id: devcontainer
@@ -78,11 +79,6 @@ jobs:
       if: matrix.full
       run: |
         ${{ env.EXEC }} make reference-test
-    - name: corpus reproducibility
-      if: matrix.full
-      run: |
-        ${{ env.EXEC }} make corpus-generate
-        git diff --exit-code -- test/corpus
     - name: consumer-test and release-test
       if: matrix.full
       run: |

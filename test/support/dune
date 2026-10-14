@@ -8,9 +8,8 @@
  (target corpus_data.ml)
  (enabled_if
   (<> %{env:UNLZ4_MELANGE=false} true))
- (deps
-  (glob_files %{project_root}/test/corpus/*))
+ (deps %{project_root}/test/reference/corpus)
  (action
   (with-stdout-to
    %{target}
-   (run %{exe:../../tools/embed.exe} %{project_root}/test/corpus))))
+   (run %{exe:../../tools/embed.exe} %{project_root}/test/reference/corpus))))
