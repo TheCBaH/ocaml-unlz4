@@ -1,5 +1,7 @@
 # unlz4
 
+[![ci](https://github.com/TheCBaH/ocaml-unlz4/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TheCBaH/ocaml-unlz4/actions/workflows/ci.yml?query=branch%3Amain)
+
 A pure OCaml [LZ4](https://lz4.org) decompressor. It decodes raw LZ4 blocks and the [LZ4 frame format](https://github.com/lz4/lz4/blob/v1.10.0/doc/lz4_Frame_format.md), and runs
 unchanged natively, under js_of_ocaml, and under Melange.
 
@@ -59,7 +61,7 @@ descriptors ([`examples/unlz4_unix.ml`](examples/unlz4_unix.ml)) and [Bytesrw](h
 
 ## Development
 
-Use the [devcontainer](.devcontainer); [CI](.github/workflows/ci.yml) runs every leg inside the same image. It provides
+Use the [devcontainer](https://github.com/TheCBaH/ocaml-unlz4/tree/main/.devcontainer); [CI](https://github.com/TheCBaH/ocaml-unlz4/actions/workflows/ci.yml?query=branch%3Amain) runs every leg inside the same image. It provides
 OCaml (4.14.4 by default, `OCAML_VERSION` to change), [Dune](https://dune.build), js_of_ocaml, Melange, [ocamlformat](https://github.com/ocaml-ppx/ocamlformat) and
 [Node.js](https://nodejs.org). `make deps` installs the opam dependencies (the devcontainer runs it on creation).
 
