@@ -1,5 +1,4 @@
 _build/
 *.install
-/test/reference/bin/
 /_consumer/
 /_release/

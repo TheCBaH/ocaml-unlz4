@@ -29,7 +29,8 @@
         }
     },
     "remoteUser": "vscode",
-    // make deps installs the opam dependencies.
-    "postCreateCommand": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g) && git config --global --add safe.directory '*' && make deps",
+    // The vendor/lz4 submodule is needed by the tests (the corpus is generated from it); make deps
+    // installs the opam dependencies.
+    "postCreateCommand": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g) && git config --global --add safe.directory '*' && git submodule update --init && make deps",
     "waitFor": "postCreateCommand"
 }

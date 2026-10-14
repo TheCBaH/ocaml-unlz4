@@ -3,7 +3,7 @@ name: ci
 # Every leg runs inside the repository devcontainer (.devcontainer/), built by
 # TheCBaH/devcontainer-action and cached in the repository's container registry.
 #
-# Every leg checks out the vendor/lz4 submodule: the test corpus is generated from it at build
+# Every leg checks out the vendor/lz4 submodule, from which the test corpus is generated at build
 # time. The 64-bit legs ("full") also run the js_of_ocaml and Melange suites, the upstream
 # fuzzer/frametest, the installed-consumer build and the release-archive test. The 32-bit legs run
 # the native suite, which proves 31-bit native-int safety, on a corpus compressed by the 32-bit
