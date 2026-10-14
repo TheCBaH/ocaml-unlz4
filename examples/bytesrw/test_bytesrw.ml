@@ -1,4 +1,4 @@
-(* The Bytesrw filters, on every backend. *)
+(* The Bytesrw adapter example, natively. *)
 
 open Bytesrw
 open Unlz4_test_support
@@ -175,3 +175,5 @@ let cases =
             check_string ~msg:f.C.name ~expected:r w)
           frames);
   ]
+
+let () = exit (Harness.run ~backend:"native (bytesrw example)" cases)

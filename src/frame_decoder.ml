@@ -497,6 +497,40 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
           t.error <- Some e;
           Error e)
 
+(* Pulls input through [read] into [inb] and pushes output through [write]. Input is read only
+   when the decoder needs it, so pending output is delivered before [read] can block. One self
+   tail-recursive loop, which js_of_ocaml and Melange compile to a loop. *)
+let drive t ~inb ~out ~read ~write =
+  let in_size = Bytes.length inb and out_size = Bytes.length out in
+  let rec go off len eof refill =
+    if refill then (
+      let n = read inb 0 in_size in
+      if n < 0 || n > in_size then invalid_arg "Unlz4.Frame.decompress_with: invalid read count";
+      go 0 n (n = 0) false)
+    else
+      let before = t.total_out in
+      match
+        decode t ~src:inb ~src_off:off ~src_len:len ~eof ~dst:out ~dst_off:0 ~dst_len:out_size ()
+      with
+      | Error e ->
+          let produced = Int64.to_int (Int64.sub t.total_out before) in
+          if produced > 0 then write out 0 produced;
+          Error e
+      | Ok { consumed; produced; status } -> (
+          if produced > 0 then write out 0 produced;
+          match status with
+          | Stream_end -> Ok ()
+          | Need_input when not eof -> go 0 0 false true
+          | Need_input | Need_output | Frame_end -> go (off + consumed) (len - consumed) eof false)
+  in
+  go 0 0 false true
+
+let chunk = 65536
+
+let decompress_with ?limits ?dictionary ?resolve_dictionary ~read ~write () =
+  let t = create ?limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
+  drive t ~inb:(Buf.create chunk) ~out:(Buf.create chunk) ~read ~write
+
 let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
   let cap = Int64.of_int Sys.max_string_length in
   let limits =
@@ -504,20 +538,20 @@ let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
     else limits
   in
   let t = create ~limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
-  let src = Bytes.of_string s in
-  let chunk = Bytes.create 65536 in
-  let out = Buffer.create (min ((String.length s * 2) + 16) (1 lsl 20)) in
-  let rec go off =
-    match
-      decode t ~src ~src_off:off
-        ~src_len:(String.length s - off)
-        ~eof:true ~dst:chunk ~dst_off:0 ~dst_len:(Bytes.length chunk) ()
-    with
-    | Error e -> Error e
-    | Ok { consumed; produced; status } -> (
-        Buffer.add_subbytes out chunk 0 produced;
-        match status with
-        | Stream_end -> Ok (Buffer.contents out)
-        | Need_input | Need_output | Frame_end -> go (off + consumed))
+  (* The whole input in one read, so payloads decode in place. *)
+  let pending = ref true in
+  let read b off _ =
+    if !pending then (
+      pending := false;
+      Bytes.blit_string s 0 b off (String.length s);
+      String.length s)
+    else 0
   in
-  go 0
+  let out = Buffer.create (min ((String.length s * 2) + 16) (1 lsl 20)) in
+  match
+    drive t
+      ~inb:(Buf.create (max 1 (String.length s)))
+      ~out:(Buf.create chunk) ~read ~write:(Buffer.add_subbytes out)
+  with
+  | Ok () -> Ok (Buffer.contents out)
+  | Error e -> Error e

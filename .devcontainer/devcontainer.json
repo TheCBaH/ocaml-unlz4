@@ -13,12 +13,11 @@
             "upgradePackages": "false"
         },
         "ghcr.io/thecbah/ocaml-features/ocaml:1": {
-            // CI sets OCAML_VERSION per matrix leg. melange-bigarray (Melange tests only) needs
-            // OCaml 4.14.4 or 5.2.1 to 5.5.x.
+            // CI sets OCAML_VERSION per matrix leg. bytesrw is only for the examples/bytesrw adapter.
             "version": "${localEnv:OCAML_VERSION:4.14.4}",
             "packages": "dune#3.24.2 js_of_ocaml#6.4.1 js_of_ocaml-compiler#6.4.1 ocamlformat#0.28.1 bytesrw",
-            // Melange 7.0.1 comes in one variant per compiler (7.0.1-414, 7.0.1-54, ...); opam picks
-            // the one matching the switch, and skips it where none is installable.
+            // Melange comes in one variant per compiler (7.0.1-414, 7.0.1-54, ...); opam picks the
+            // one matching the switch, and skips it where none is installable.
             "optional-packages": "melange"
         }
     },
@@ -30,8 +29,7 @@
         }
     },
     "remoteUser": "vscode",
-    // make deps installs the opam dependencies and, when Melange is present, pins melange-bigarray
-    // by commit, so CI and local containers use the same revision.
+    // make deps installs the opam dependencies.
     "postCreateCommand": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g) && git config --global --add safe.directory '*' && make deps",
     "waitFor": "postCreateCommand"
 }

@@ -1,14 +1,13 @@
-(** LZ4 frame decompression filters for {{:https://erratique.ch/software/bytesrw}Bytesrw}.
+(** LZ4 frame decompression filters for {{:https://erratique.ch/software/bytesrw}Bytesrw}: an
+    example of a host driver over {!Unlz4.Frame.decode}.
 
     Errors are raised as {!Bytesrw.Bytes.Stream.Error} with the {!Error} case, format ["lz4"].
     Exceptions raised by the underlying reader or writer pass through unchanged. After an error
     the filter raises the same error again.
 
     Bytesrw positions are [int]s. The filters cap their decoded output so that their own position
-    never exceeds [max_int] (2{^62}-1 natively on 64-bit hosts, 2{^30}-1 natively on 32-bit hosts,
-    2{^31}-1 under js_of_ocaml and Melange), reporting [Limit_exceeded] first. The wrapped
-    reader's or writer's own position must not overflow either; that is the caller's
-    responsibility. For longer JavaScript streams use {!Unlz4.Frame} directly. *)
+    never exceeds [max_int], reporting [Limit_exceeded] first. The wrapped reader's or writer's
+    own position must not overflow either; that is the caller's responsibility. *)
 
 open Bytesrw
 

@@ -1,0 +1,23 @@
+(* unlz4_unix [FILE]: writes the decompressed LZ4 frames of FILE (or stdin) to stdout, with Unix
+   file descriptors. *)
+
+let rec read fd b off len =
+  try Unix.read fd b off len with Unix.Unix_error (Unix.EINTR, _, _) -> read fd b off len
+
+(* Unix.write loops until everything is written. *)
+let write fd b off len = ignore (Unix.write fd b off len : int)
+
+let () =
+  let fd =
+    match Sys.argv with
+    | [| _ |] -> Unix.stdin
+    | [| _; f |] -> Unix.openfile f [ Unix.O_RDONLY ] 0
+    | _ ->
+        prerr_endline "usage: unlz4_unix [FILE]";
+        exit 2
+  in
+  match Unlz4.Frame.decompress_with ~read:(read fd) ~write:(write Unix.stdout) () with
+  | Ok () -> ()
+  | Error e ->
+      prerr_endline (Unlz4.Error.to_string e);
+      exit 1

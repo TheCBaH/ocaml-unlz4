@@ -24,15 +24,3 @@
   (ocaml
    (>= 4.14))))
 
-(package
- (name unlz4-bytesrw)
- (synopsis "Bytesrw reader and writer filters for unlz4")
- (description
-  "LZ4 frame decompression filters for Bytesrw readers and writers, built on the pure OCaml unlz4 decoder.")
- (depends
-  (ocaml
-   (>= 4.14))
-  (unlz4
-   (= :version))
-  (bytesrw
-   (>= 0.4.0))))

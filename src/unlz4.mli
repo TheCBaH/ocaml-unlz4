@@ -194,6 +194,25 @@ module Frame : sig
     (string, Error.t) result
   (** Decodes a whole concatenated stream, returning the output only once everything is verified.
       Output is also capped at [Sys.max_string_length]. *)
+
+  val decompress_with :
+    ?limits:Limits.t ->
+    ?dictionary:Dictionary.t ->
+    ?resolve_dictionary:(int32 -> Dictionary.t option) ->
+    read:(bytes -> int -> int -> int) ->
+    write:(bytes -> int -> int -> unit) ->
+    unit ->
+    (unit, Error.t) result
+  (** Decodes a concatenated stream from a blocking source to a sink, with bounded memory.
+      [read buf off len] stores at most [len] bytes at [buf.[off]] and returns their number, [0]
+      meaning end of input, like [Stdlib.input]; it is not called again after [0]. [write buf off
+      len] receives decoded bytes, valid only during the call. [read] is called only when the
+      decoder needs input, after all pending output was written. On error, [write] has received
+      every byte decoded before it; as with {!decode}, that can precede a later checksum or size
+      error. Exceptions from [read] and [write] pass through. Raises [Invalid_argument] if [read]
+      returns a count outside [0 .. len].
+
+      For channels: [decompress_with ~read:(input ic) ~write:(output oc) ()]. *)
 end
 
 (** Not part of the stable API; exposed for tests. *)

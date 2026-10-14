@@ -19,11 +19,10 @@ when scope or ordering changes.
 
 ### M0: repository and toolchain
 
-Scaffold the standalone repository: `dune-project` (generating `unlz4.opam`
-and `unlz4-bytesrw.opam`), `Makefile`, `.ocamlformat`, `LICENSE`, `README.md`,
+Scaffold the standalone repository: `dune-project` (generating `unlz4.opam`),
+`Makefile`, `.ocamlformat`, `LICENSE`, `README.md`,
 `.devcontainer/` and `.github/workflows/ci.yml`; pin `vendor/lz4` at v1.10.0.
-Run the compatibility spike: Bytesrw under Melange with melange-bigarray,
-`Int32`/`Int64` agreement across backends.
+Run the compatibility spike: `Int32`/`Int64` agreement across backends.
 
 Exit: `make ci` passes locally in a switch matching the devcontainer; the
 workflow builds the devcontainer and runs `make ci` on every matrix leg.
@@ -71,31 +70,34 @@ runners print backend, fixture digest summary and test counts.
 Exit: `make test-js` and `make test-melange` green with the same counts as
 native.
 
-### M5: Bytesrw adapter
+### M5: host drivers
 
-`Unlz4_bytesrw.decompress_reads`/`decompress_writes` following Bytesrw filter
-conventions: push-back of the single-frame remainder, slice validity,
-downstream slice lengths, EOD propagation, structured `format_error`,
-position-limit guard. Tests for buffer lifetime (poisoned/reused slices),
-exceptions passthrough, and reader/writer agreement, on all three backends.
+`Unlz4.Frame.decompress_with`, a callback driver for blocking sources and
+sinks, on all three backends: read sizes, output buffer lifetime, output
+before errors, callback exceptions, no read while output is pending. A
+Bytesrw adapter (`decompress_reads`/`decompress_writes`) as a native example
+under `examples/bytesrw/`, built when `bytesrw` is installed: push-back of the
+single-frame remainder, slice validity, downstream slice lengths, EOD
+propagation, structured `format_error`, position-limit guard, with native
+tests for buffer lifetime, exceptions and reader/writer agreement.
 
-Exit: adapter suite green on native, jsoo and Melange.
+Exit: driver suite green on native, jsoo and Melange; Bytesrw example suite
+green natively, and the build passes without `bytesrw` installed.
 
 ### M6: examples, consumers, measurements
 
-Native Bytesrw example (decompress stdin to stdout); asynchronous JS driver
-example for jsoo; an installed-package consumer build (`dune install` into a
-temporary prefix, then build `test/consumer`); a benchmark executable
-reporting throughput on literal-heavy, repetition-heavy, dictionary and mixed
-data.
+Native examples decompressing to stdout through channels, Unix descriptors
+and Bytesrw; asynchronous JS driver example for jsoo; an installed-package
+consumer build (`dune install` into a temporary prefix, then build
+`test/consumer`); a benchmark executable reporting throughput on
+literal-heavy, repetition-heavy, dictionary and mixed data.
 
 Exit: examples build in CI; consumer build passes; benchmark numbers recorded
 in the tracker.
 
 ### M7: release readiness
 
-README usage, `opam lint`, `dune build -p unlz4,unlz4-bytesrw` without
-Melange, release-archive test (`git archive` without submodules, then build and
+README usage, `opam lint`, `dune build -p unlz4` without Melange, release-archive test (`git archive` without submodules, then build and
 test), and a final coverage review against the design's pre-release table.
 
 Exit: release-archive test green; every coverage row is ticked or explicitly
@@ -104,5 +106,5 @@ deferred in the tracker.
 ## Later (not v1)
 
 Browser (Chromium) smoke tests, nightly broad seed sweeps and mutation fuzzing,
-sanitizer-built C tools, an installable Melange Bytesrw adapter, chunked match
+sanitizer-built C tools, chunked match
 copying, and JS `Uint8Array` interop packages.

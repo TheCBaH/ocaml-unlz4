@@ -3,21 +3,21 @@
 Status of the tasks in [plan.md](plan.md). States: `todo`, `doing`, `done`,
 `deferred` (with the reason). Update this file in the same change as the work.
 
-Verified locally (2026-10-13) on OCaml 4.14.4 (Melange 7.0.1-414) and OCaml
-5.4.1 (Melange 7.0.1-54), Dune 3.24.2, js_of_ocaml 6.4.1, Bytesrw 0.4.1, Node
-24: `make ci test-js test-melange reference-test consumer-test release-test`,
-and `make corpus-generate` reproduces the checked-in corpus byte for byte. The
-32-bit legs (i386, arm/v7) run only in CI.
+Verified locally on OCaml 4.14.4 (Melange 7.0.1-414) and OCaml 5.4.1 (Melange 7.0.1-54), Dune
+3.24.2, js_of_ocaml 6.4.1, Bytesrw 0.4.1, Node 24: `make ci test-js test-melange consumer-test
+release-test` (2026-10-14, after the host-driver change); `make reference-test`, and `make
+corpus-generate` reproducing the checked-in corpus byte for byte (2026-10-13; neither depends on
+that change). The 32-bit legs (i386, arm/v7) run only in CI.
 
 ## M0: repository and toolchain
 
 | Task | State | Notes |
 | --- | --- | --- |
-| Review and update design | done | Naming (`unlz4`: opam `lz4` is taken), toolchain, Melange Bytesrw resolution, concrete API |
+| Review and update design | done | Naming (`unlz4`: opam `lz4` is taken), toolchain, concrete API; Bytesrw moved to an example (2026-10-14) |
 | `vendor/lz4` submodule at v1.10.0 (`ebb370ca`) | done | |
-| Compatibility spike: Bytesrw under Melange | done | Installed Bytesrw 0.4.1 sources build unmodified with melange-bigarray.compat |
+| Compatibility spike | done | `Int32`/`Int64` agreement across backends. Bytesrw under Melange also worked (rebuilt with melange-bigarray) but is no longer needed |
 | dune-project, opam files, Makefile, .ocamlformat, LICENSE, README | done | `opam lint` passes; license MIT |
-| Devcontainer | done | Debian 13; OCaml feature with `OCAML_VERSION`; Melange optional; `make deps` pins melange-bigarray |
+| Devcontainer | done | Debian 13; OCaml feature with `OCAML_VERSION`; Melange optional; `bytesrw` for the example |
 | CI workflow (devcontainer-based) | done | `.github/workflows/ci.yml`: 4.14.4 and 5.4.1 on amd64/arm64 (full), 4.14.4 on i386/arm/v7 (native, no submodule). Not yet run on GitHub |
 
 ## M1: raw blocks
@@ -53,22 +53,24 @@ and `make corpus-generate` reproduces the checked-in corpus byte for byte. The
 
 | Task | State | Notes |
 | --- | --- | --- |
-| jsoo runner | done | 73 + 12 cases, same as native |
-| Melange mirror and runner | done | `melange/`, `UNLZ4_MELANGE=true`; 73 + 12 cases |
+| jsoo runner | done | 78 cases, same as native |
+| Melange mirror and runner | done | `melange/`, `UNLZ4_MELANGE=true`; 78 cases |
 
-## M5: Bytesrw adapter
+## M5: host drivers
 
 | Task | State | Notes |
 | --- | --- | --- |
-| `decompress_reads` | done | Single-mode push-back at the exact boundary |
-| `decompress_writes` | done | Concatenated only, per design |
-| Adapter tests on three backends | done | Poisoned sources, slice bounds, EOD, exceptions, position cap, reader/writer agreement |
+| `Frame.decompress_with` | done | Reads only on `Need_input`; output written before errors; `Frame.decompress` built on it |
+| Driver tests on three backends | done | `test/shared/test_driver.ml`, 5 cases |
+| Channel and Unix examples | done | `examples/unlz4_cat.ml`, `examples/unlz4_unix.ml`; `@runtest` compares them |
+| Bytesrw adapter example | done | `examples/bytesrw/`: reader/writer filters, single-mode push-back, cat; 12 native cases. Skipped (cat is a stub) without `bytesrw` |
+| Remove the `unlz4-bytesrw` package and Melange Bytesrw rebuild | done | Drops melange-bigarray and the Melange Bytesrw tests |
 
 ## M6: examples, consumers, measurements
 
 | Task | State | Notes |
 | --- | --- | --- |
-| Native Bytesrw example | done | `examples/unlz4_cat.ml` |
+| Native examples | done | See M5 |
 | Async JS example | done | `examples/js/`: Node stream host; `@runtest-jsoo` compares it with `unlz4_cat` |
 | Installed consumer build | done | `make consumer-test` (native) |
 | Benchmarks | done | `make bench`/`bench-js`. Overall corpus throughput, 4.14.4 x86-64 devcontainer: native ≈ 1590 MB/s, jsoo/Node ≈ 150 MB/s |
@@ -89,13 +91,11 @@ limits:
 
 - Counters beyond 2^53 are not exercised (only beyond 2^32, by skipping 8 GiB of skippable
   frames); all counters are `Int64` throughout.
-- Installed-package consumer builds are native only; JS consumer projects are deferred with the
-  installable Melange adapter.
+- Installed-package consumer builds are native only; JS consumer projects are deferred.
 
 ## Open
 
 | Item | Notes |
 | --- | --- |
 | First CI run on GitHub | Needs the repository pushed; devcontainer images are cached in its registry |
-| Installable Melange Bytesrw adapter | Waits for upstream Bytesrw Melange packaging (design: "Bytesrw interface") |
 | Browser smoke tests, nightly fuzzing, sanitizer builds | Later, per plan.md |

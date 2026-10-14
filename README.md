@@ -14,9 +14,9 @@ unchanged natively, under js_of_ocaml, and under Melange.
 - **Checked**: malformed input yields a structured `Unlz4.Error.t` (kind, compressed and decoded
   offsets, frame and block index), never an exception or an out-of-range access. Limits bound the
   block size, input, output, frame count and skipped bytes.
-- **Portable**: the `unlz4` package depends only on the standard library: no C stubs, Unix,
-  Bigarray or external hash library. `unlz4-bytesrw` adds
-  [Bytesrw](https://erratique.ch/software/bytesrw) reader and writer filters.
+- **Portable**: depends only on the standard library: no C stubs, Unix, Bigarray, I/O library
+  or external hash library. `Unlz4.Frame.decompress_with` drives any blocking source and sink,
+  such as channels or Unix descriptors.
 
 Compression is out of scope. See [docs/design.md](docs/design.md) for the design,
 [docs/plan.md](docs/plan.md) and [docs/tracker.md](docs/tracker.md) for status.
@@ -43,18 +43,20 @@ let rec feed src off len ~eof =
       | Need_input when not eof -> () (* wait for the next chunk *)
       | _ -> feed src (off + consumed) (len - consumed) ~eof)
 
-(* Bytesrw. *)
-let plain =
-  Bytesrw.Bytes.Reader.of_string compressed
-  |> Unlz4_bytesrw.decompress_reads ()
-  |> Bytesrw.Bytes.Reader.to_string
+(* Channels, or any blocking read/write pair. *)
+let () =
+  match Unlz4.Frame.decompress_with ~read:(input ic) ~write:(output oc) () with
+  | Ok () -> ()
+  | Error e -> prerr_endline (Unlz4.Error.to_string e)
 
 (* Raw blocks carry no size: bound the output. *)
 let block = Unlz4.Block.decompress ~max_output:65536 raw_block
 ```
 
-`examples/unlz4_cat.ml` decompresses files to stdout through Bytesrw, and `examples/js/` shows an
-asynchronous Node host driving the decoder compiled with js_of_ocaml.
+The examples decompress files to stdout through channels (`examples/unlz4_cat.ml`), Unix
+descriptors (`examples/unlz4_unix.ml`) and [Bytesrw](https://erratique.ch/software/bytesrw)
+(`examples/bytesrw/`, reader and writer filters, built when `bytesrw` is installed), and
+`examples/js/` shows an asynchronous Node host driving the decoder compiled with js_of_ocaml.
 
 ## Development
 

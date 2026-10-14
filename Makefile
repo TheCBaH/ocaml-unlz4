@@ -2,10 +2,6 @@ OPAM_EXEC = opam exec --
 DUNE = $(OPAM_EXEC) dune
 CC ?= cc
 
-# melange-bigarray is not in opam-repository yet; it is pinned by commit and only needed by the
-# Melange build (test-melange).
-MELANGE_BIGARRAY = git+https://github.com/TheCBaH/melange-bigarray.git\#4fb9c1870c1cd861a5e919645bbe16d0f9fb3a56
-
 UPSTREAM = vendor/lz4
 UPSTREAM_LIB = $(UPSTREAM)/lib
 REF_BIN = test/reference/bin
@@ -15,11 +11,10 @@ CORPUS = test/corpus
 .PHONY: deps build test test-js test-melange bench bench-js fmt fmt-check corpus-check \
 	reference-build reference-test corpus-generate consumer-test release-test ci clean
 
+# bytesrw is not a dependency of unlz4: it only enables the examples/bytesrw adapter and its tests.
 deps:
 	opam install . --deps-only --with-test -y
-	if $(OPAM_EXEC) sh -c 'command -v melc' >/dev/null 2>&1; then \
-	  opam pin add -y -n melange-bigarray '$(MELANGE_BIGARRAY)' && opam install -y melange-bigarray; \
-	fi
+	opam install -y bytesrw
 
 build:
 	$(DUNE) build @all
@@ -82,12 +77,12 @@ corpus-generate: reference-build
 	$(REF_BIN)/unlz4_ref $(CORPUS) $$(git -C $(UPSTREAM) rev-parse HEAD)
 	cd $(CORPUS) && export LC_ALL=C && sha256sum *.lz4 manifest.txt > SHA256SUMS
 
-# Installs both packages into a temporary prefix and builds a project that only knows them by
-# their public names.
+# Installs the package into a temporary prefix and builds a project that only knows it by its
+# public name.
 consumer-test:
 	rm -rf _consumer && mkdir -p _consumer/prefix _consumer/project
-	$(DUNE) build -p unlz4,unlz4-bytesrw @install
-	$(DUNE) install --prefix=$(CURDIR)/_consumer/prefix unlz4 unlz4-bytesrw
+	$(DUNE) build -p unlz4 @install
+	$(DUNE) install --prefix=$(CURDIR)/_consumer/prefix unlz4
 	cp test/consumer/dune-project test/consumer/dune test/consumer/consumer.ml _consumer/project/
 	cd _consumer/project && OCAMLPATH=$(CURDIR)/_consumer/prefix/lib:$$OCAMLPATH \
 	  $(DUNE) build --root . ./consumer.exe && ./_build/default/consumer.exe
@@ -99,7 +94,7 @@ release-test:
 	rm -rf _release && mkdir -p _release
 	git ls-files -z --cached --others --exclude-standard | grep -z -v '^vendor/' | \
 	  xargs -0 cp --parents -t _release
-	cd _release && test ! -e vendor/lz4/lib && $(DUNE) build -p unlz4,unlz4-bytesrw @install @runtest
+	cd _release && test ! -e vendor/lz4/lib && $(DUNE) build -p unlz4 @install @runtest
 	rm -rf _release
 
 ci: fmt-check build test corpus-check
