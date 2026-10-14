@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 open Unlz4_test_support
 open Harness
 module B = Unlz4.Block

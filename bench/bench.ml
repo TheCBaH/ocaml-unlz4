@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Decoding throughput per corpus frame and raw block, in decoded MB/s. Run several rounds of each
    fixture for at least [min_time] seconds of CPU time. *)
 

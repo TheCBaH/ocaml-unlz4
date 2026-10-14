@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* The resumable LZ4 frame decoder. See docs/design.md, "Decoder architecture".
 
    Fixed-size fields (magic, descriptor, block headers, checksums, skippable sizes) are collected

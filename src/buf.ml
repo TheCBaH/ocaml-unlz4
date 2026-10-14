@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Buffers the decoder both writes and reads back (match copies).
 
    js_of_ocaml represents a fresh [Bytes.create] buffer as a growing JavaScript string until the

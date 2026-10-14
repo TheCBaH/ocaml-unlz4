@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* All arithmetic is on Int32, so the result is the same with a 63-bit native int, a 31-bit one,
    js_of_ocaml or Melange. Lengths fit in an int; only their low 32 bits enter the hash. *)
 

@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Deterministic data, generated identically by test/reference/unlz4_ref.c: the fixtures' plain
    text and dictionaries are recipes, not files. The generator is xorshift32 on Int32, returning
    30-bit values so they fit in every backend's [int]. Do not change it without regenerating the

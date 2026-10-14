@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* The checked-in corpus (test/corpus), embedded at build time by tools/embed.ml. *)
 
 type kind = Block | Frame

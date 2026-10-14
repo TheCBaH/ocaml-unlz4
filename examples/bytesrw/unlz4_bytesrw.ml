@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 open Bytesrw
 
 type Bytes.Stream.error += Error of Unlz4.Error.t

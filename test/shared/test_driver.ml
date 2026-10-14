@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Frame.decompress_with: the callback driver used for channels and file descriptors. *)
 
 open Unlz4_test_support

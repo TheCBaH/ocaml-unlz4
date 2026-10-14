@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Encoders for handcrafted test inputs: LZ4 sequences, blocks and frames written independently of
    any compressor, so tests can cover patterns a compressor never emits. *)
 

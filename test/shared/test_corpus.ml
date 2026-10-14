@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* Differential replay of the upstream-generated corpus: identical plain text and consumed length
    on every fixture, under varied input fragmentation and output capacity, plus mutations that must
    fail safely. *)

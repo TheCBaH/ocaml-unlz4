@@ -1,3 +1,6 @@
+[@@@ai_disclosure "ai-generated"]
+[@@@ai_provider "Anthropic, OpenAI"]
+
 (* A minimal test harness that runs unchanged natively, under js_of_ocaml and under Melange. *)
 
 exception Check_failed of string
