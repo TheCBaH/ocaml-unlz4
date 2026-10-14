@@ -1,0 +1,6 @@
+(library
+ (name unlz4_bytesrw)
+ (public_name unlz4-bytesrw)
+ (libraries unlz4 bytesrw)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

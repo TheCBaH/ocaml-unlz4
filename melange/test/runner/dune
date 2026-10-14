@@ -1,0 +1,20 @@
+; The shared suites under Melange and Node: `UNLZ4_MELANGE=true dune build @runtest-melange`.
+
+(melange.emit
+ (target js)
+ (modules main main_bytesrw)
+ (libraries unlz4_tests unlz4_bytesrw_tests unlz4_test_support)
+ (module_systems commonjs)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))
+
+(rule
+ (alias runtest-melange)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true))
+ (deps
+  (alias_rec melange))
+ (action
+  (progn
+   (run node js/melange/test/runner/main.js)
+   (run node js/melange/test/runner/main_bytesrw.js))))

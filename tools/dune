@@ -1,0 +1,5 @@
+; Development tools. Native only and independent of the library, so they build the same way in
+; the native and the UNLZ4_MELANGE=true configurations.
+
+(executable
+ (name embed))

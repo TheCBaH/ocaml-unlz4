@@ -1,0 +1,6 @@
+(test
+ (name main)
+ (package unlz4-bytesrw)
+ (libraries unlz4_bytesrw_tests unlz4_test_support)
+ (build_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

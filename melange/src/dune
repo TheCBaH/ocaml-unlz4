@@ -1,0 +1,17 @@
+(copy_files# ../../src/*.ml)
+
+(copy_files# ../../src/*.mli)
+
+(library
+ (name unlz4)
+ (modes melange)
+ (private_modules
+  buf
+  xxh32
+  error
+  dictionary
+  limits
+  block_decoder
+  frame_decoder)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))

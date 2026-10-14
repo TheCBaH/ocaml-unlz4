@@ -1,0 +1,19 @@
+(copy_files# ../../../test/support/*.ml)
+
+(library
+ (name unlz4_test_support)
+ (modes melange)
+ (libraries unlz4)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))
+
+(rule
+ (target corpus_data.ml)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true))
+ (deps
+  (glob_files %{project_root}/test/corpus/*))
+ (action
+  (with-stdout-to
+   %{target}
+   (run %{exe:../../../tools/embed.exe} %{project_root}/test/corpus))))

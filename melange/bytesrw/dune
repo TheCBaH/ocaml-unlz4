@@ -1,0 +1,10 @@
+(copy_files# ../../bytesrw/*.ml)
+
+(copy_files# ../../bytesrw/*.mli)
+
+(library
+ (name unlz4_bytesrw)
+ (modes melange)
+ (libraries unlz4 bytesrw_melange)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))

@@ -1,0 +1,7 @@
+; The Melange build, enabled by UNLZ4_MELANGE=true (make test-melange).
+;
+; Dune cannot make a library's `modes` conditional, and declaring melange mode would put melc rules
+; into @all on every build, including release builds and OCaml versions without Melange. So each
+; library appears twice: once in its own directory (native and bytecode, disabled when
+; UNLZ4_MELANGE=true) and once under melange/ (Melange only, enabled only then), copy_files'ing
+; the very same sources.

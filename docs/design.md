@@ -1,6 +1,7 @@
-# Pure OCaml LZ4 decompressor
+# unlz4: a pure OCaml LZ4 decompressor
 
-Status: initial design; no implementation yet. 2026-10-13.
+Status: reviewed and updated for implementation, 2026-10-13. The execution plan
+is [plan.md](plan.md) and task status is tracked in [tracker.md](tracker.md).
 
 Build a standalone, pure OCaml decompression library with the same decoding
 source for native OCaml, js_of_ocaml (jsoo), and Melange. Support raw LZ4 blocks
@@ -8,21 +9,30 @@ and the modern LZ4 frame format. Use Bytesrw through a separate, optional I/O
 adapter. Include the upstream LZ4 repository as a pinned development submodule
 for specifications, interoperability tests, and fixture generation.
 
-This document lives in mltorch's design directory for now. The implementation
-will have its own repository, Dune project, packages, documentation, and CI;
-it must build and test without mltorch, PyTorch, or any sibling submodule.
-Names below are provisional and require an opam namespace check before release.
+This repository is the standalone home of the library: its own Dune project,
+opam packages, documentation, devcontainer and devcontainer-based CI. It must
+build and test without any sibling checkout.
+
+### Naming
+
+The opam name `lz4` is taken by existing C bindings
+([whitequark/ocaml-lz4](https://github.com/whitequark/ocaml-lz4), module
+`LZ4`), as are `lz4_chans` and `conf-lz4`/`conf-liblz4`. This library therefore
+uses `unlz4`: it states that the package only decompresses, it is free in
+opam-repository, and its top-level module `Unlz4` cannot collide with `LZ4` on
+case-insensitive file systems. The Bytesrw adapter is `unlz4-bytesrw` with
+module `Unlz4_bytesrw`. The names remain provisional until an opam release.
 
 ## Scope and package boundaries
 
 | Component | Proposed public library | Dependencies | Responsibility |
 | --- | --- | --- | --- |
-| Decoder | `lz4` / module `Lz4` | OCaml standard library | Blocks, incremental frames, dictionaries, checksums, errors and limits |
-| Bytesrw adapter | `lz4-bytesrw` / module `Lz4_bytesrw` | `lz4`, base `bytesrw` | Reader and writer decompression filters |
+| Decoder | `unlz4` / module `Unlz4` | OCaml standard library | Blocks, incremental frames, dictionaries, checksums, errors and limits |
+| Bytesrw adapter | `unlz4-bytesrw` / module `Unlz4_bytesrw` | `unlz4`, base `bytesrw` | Reader and writer decompression filters |
 | Reference tools | Development executables only | C compiler, pinned upstream LZ4 | Generate compressed inputs and reference results |
 | JS interop | Optional examples initially | Backend-specific bindings | Convert `Uint8Array` to/from OCaml bytes and drive incremental decoding |
 
-Publish separate opam packages, provisionally `lz4` and `lz4-bytesrw`, so the
+Publish separate opam packages, `unlz4` and `unlz4-bytesrw`, so the
 core remains installable without Bytesrw. The runtime must have no C stubs,
 FFI calls to liblz4, WebAssembly decoder, subprocesses, Bigarray requirement,
 Unix dependency, or external hash library. In particular, do not depend on
@@ -86,9 +96,9 @@ defaults to full consumption.
 
 ```mermaid
 flowchart LR
-    Memory[OCaml bytes] --> Core[Lz4 incremental frame decoder]
+    Memory[OCaml bytes] --> Core[Unlz4 incremental frame decoder]
     Host[Host stream or async JS chunks] --> Core
-    RW[Bytesrw reader or writer] --> Adapter[Lz4_bytesrw]
+    RW[Bytesrw reader or writer] --> Adapter[Unlz4_bytesrw]
     Adapter --> Core
     Core --> Block[Raw block decoder]
     Core --> Hash[Pure OCaml XXH32]
@@ -100,12 +110,17 @@ flowchart LR
 ```
 
 The raw-block decoder is a bounded one-shot operation. The frame decoder is a
-resumable state machine. Start with whole-block buffering internally rather
+resumable state machine; its step function only makes direct self tail calls,
+which js_of_ocaml and Melange compile to loops, so many tiny blocks cannot grow
+the stack (tested with 100,000 empty stored blocks). Start with whole-block buffering internally rather
 than exposing every token as a public streaming state. This gives a small,
 auditable core while still bounding memory independently of total stream size.
 
-Suggested frame phases are magic, descriptor, block header, block payload,
-block checksum, decode, emit, footer, skip payload, and frame boundary. Keep
+Frame phases are magic, descriptor, block header, block payload, block
+checksum, emit, footer, skippable size and skip payload, plus the terminal
+single-frame and stream ends. A block payload that is wholly present in the
+caller's input (with its checksum) is verified and decoded in place, without
+being copied into the payload buffer. Keep
 partial fixed fields and payload fill cursors between calls. Decode one block,
 then drain its output before accepting the next block. Avoid per-byte
 allocations and recursion proportional to input size.
@@ -126,15 +141,25 @@ after all required validation succeeds.
 ## Raw-block algorithm and history
 
 Use `Bytes.get`, `Bytes.set`, and `Bytes.blit` with explicit range checks.
+js_of_ocaml keeps a fresh `Bytes.create` buffer as a growing JavaScript string
+until its first non-appending `Bytes.set`, and reading such a buffer back
+between appends is quadratic. Buffers the decoder writes and then reads (the
+frame window, the payload buffer, a raw block's output range) are therefore
+moved to the array representation once, by rewriting one in-range byte with
+its own value.
 Validate ranges by subtraction (`len <= capacity - off`) after checking
 nonnegative values. Accumulate lengths against the remaining output capacity;
 do not add first and check after an overflow.
 
-Literal copies may use `Bytes.blit`. Match copies initially advance forward
-one byte at a time so newly generated output becomes available to later bytes
-of an overlapping match. `Bytes.blit` has snapshot-like overlap behavior and
-cannot implement a match whose length exceeds its offset. Optimize later with
-proven chunk replication or special cases, preserving the forward-copy result.
+Literal copies use `Bytes.blit`. A match must behave like a byte-at-a-time
+forward copy, so newly generated output feeds later bytes of an overlapping
+match; `Bytes.blit` has snapshot-like overlap behavior and cannot do that
+alone. When the offset is at least the length, one blit is exact. Otherwise
+the first `offset` bytes are copied, and the copied prefix, whose length is
+always a multiple of the period `offset`, is doubled by blits from the match
+start; a periodic prefix copied at a multiple of its period extends the same
+period, so the result equals the forward copy. Random-sequence tests compare
+against a byte-at-a-time reference expander.
 
 Treat the supplied dictionary tail followed by already decoded bytes as one
 logical history. A match may begin in the dictionary and continue into the
@@ -156,36 +181,45 @@ prove that bytes are correct from an ID alone. Never search files or fetch a
 dictionary implicitly. A resolver runs once per modern frame after header
 validation and before its first data block.
 
-## Proposed public API
+## Public API
 
-The following is a sketch, not a finalized or compilable `.mli`. Abstract types
-hide state and allow implementation changes. Small counts/indexes are `int`;
-stream byte counts are `int64`; dictionary IDs and XXH32 values are `int32`
-bit patterns. Configuration constructors validate options before decoding.
+The authoritative interface is `src/unlz4.mli`; this summary records the
+decisions it implements. Abstract types hide state. Small counts/indexes are
+`int`; stream byte counts are `int64`; dictionary IDs and XXH32 values are
+`int32` bit patterns. Configuration constructors validate options and raise
+`Invalid_argument` before decoding starts.
 
 ```ocaml
-module Lz4 : sig
+module Unlz4 : sig
   module Error : sig
-    type t
     type kind =
       | Invalid_block | Invalid_frame | Truncated_input
       | Unsupported_feature | Missing_dictionary | Dictionary_id_mismatch
       | Checksum_mismatch | Content_size_mismatch | Limit_exceeded
+    type t
     val kind : t -> kind
-    val compressed_offset : t -> int64
-    val decoded_offset : t -> int64
+    val compressed_offset : t -> int64  (* offending field/token *)
+    val decoded_offset : t -> int64     (* decoded bytes before the error *)
+    val frame_index : t -> int option   (* modern frames, zero-based *)
+    val block_index : t -> int option   (* data blocks within the frame *)
     val message : t -> string
+    val to_string : t -> string
   end
 
   module Dictionary : sig
     type t
-    val of_bytes : ?id:int32 -> bytes -> t
+    val of_bytes : ?id:int32 -> bytes -> t   (* snapshots the last 64 KiB *)
+    val of_string : ?id:int32 -> string -> t
+    val id : t -> int32 option
+    val length : t -> int
   end
 
   module Limits : sig
     type t
-    (* Constructor sets max block size, input/output byte counts,
-       frame count, and cumulative skipped bytes. *)
+    val default : t
+    val make :
+      ?max_block_size:int -> ?max_input:int64 -> ?max_output:int64 ->
+      ?max_frames:int64 -> ?max_skipped:int64 -> unit -> t
   end
 
   module Block : sig
@@ -195,6 +229,9 @@ module Lz4 : sig
       dst:bytes -> dst_off:int -> dst_len:int ->
       unit -> (int, Error.t) result
     (* Returns bytes written; consumes exactly src_len on success. *)
+    val decompress :
+      ?dictionary:Dictionary.t -> max_output:int -> string ->
+      (string, Error.t) result
   end
 
   module Frame : sig
@@ -202,6 +239,11 @@ module Lz4 : sig
     type mode = Single | Concatenated
     type status = Need_input | Need_output | Frame_end | Stream_end
     type progress = { consumed : int; produced : int; status : status }
+    type info = {
+      block_max_size : int; block_independent : bool;
+      block_checksum : bool; content_checksum : bool;
+      content_size : int64 option; dictionary_id : int32 option;
+    }
     val create :
       ?limits:Limits.t -> ?mode:mode -> ?dictionary:Dictionary.t ->
       ?resolve_dictionary:(int32 -> Dictionary.t option) -> unit -> t
@@ -209,27 +251,47 @@ module Lz4 : sig
       t -> src:bytes -> src_off:int -> src_len:int -> eof:bool ->
       dst:bytes -> dst_off:int -> dst_len:int ->
       unit -> (progress, Error.t) result
+    val info : t -> info option          (* the current or last modern frame *)
+    val total_in : t -> int64
+    val total_out : t -> int64
     val decompress :
       ?limits:Limits.t -> ?dictionary:Dictionary.t ->
       ?resolve_dictionary:(int32 -> Dictionary.t option) ->
-      bytes -> (bytes, Error.t) result
+      string -> (string, Error.t) result
   end
 end
 ```
 
+`Limits.default` admits every standard block size (4 MiB) and leaves input,
+output, frame and skipped-byte totals unbounded (`Int64.max_int`).
+`max_block_size` must be at least 64 KiB; a frame whose descriptor advertises a
+larger block maximum fails with `Limit_exceeded` before any buffer is
+allocated. `Frame.decompress` additionally caps output at
+`Sys.max_string_length` and checks the cap while growing its buffer.
+`Block.decompress` takes the output bound explicitly because raw blocks carry
+no size; it is a convenience over `decompress_into`.
+
 `eof:true` means the supplied range is the final input; after that range is
 consumed no new input is permitted, but calls with empty input may drain
-pending output. Input exhaustion without EOF yields `Need_input`, not
+pending output. Once a call passes `eof:true`, later calls must also pass
+`eof:true` with exactly the unconsumed remainder (raising `Invalid_argument`
+otherwise). Input exhaustion without EOF yields `Need_input`, not
 truncation. Retain no references to caller buffers after `decode` returns.
 Callers advance by `consumed` and `produced` and may reuse those ranges then.
+An `Error` result carries no progress record, so `total_in`/`total_out` include
+what the failing call consumed and wrote; the difference from the previous
+`total_out` locates the decoded prefix in `dst`.
 Reject source/output aliasing in this API too. Output buffers may contain a
 decoded prefix after an error; neither incremental nor raw-block decoding
 promises rollback. Bytes outside the supplied output range remain untouched.
 
 In concatenated mode `Frame_end` reports each completed modern frame and
-allows continuation. In single mode it is terminal and unconsumed bytes remain
+allows continuation; `consumed` stops at the end of that frame. When the last
+frame ends exactly at EOF the call reports `Frame_end` and the next call
+reports `Stream_end`. In single mode it is terminal and unconsumed bytes remain
 with the caller. `Stream_end` reports validated EOF in concatenated mode.
-Skipped frames do not produce `Frame_end`. Empty output ranges must not spin:
+Skipped frames do not produce `Frame_end`. Terminal statuses are sticky: later
+calls return them again with zero progress. Empty output ranges must not spin:
 return `Need_output` when decoded output is pending. A nonterminal call with
 available input/output must make progress or return a clear suspension status.
 
@@ -253,17 +315,21 @@ Follow the actual reader/writer filter conventions:
 ```ocaml
 open Bytesrw
 
+type Bytes.Stream.error += Error of Unlz4.Error.t
+
 val decompress_reads :
-  ?limits:Lz4.Limits.t -> ?mode:Lz4.Frame.mode ->
-  ?dictionary:Lz4.Dictionary.t ->
-  ?resolve_dictionary:(int32 -> Lz4.Dictionary.t option) ->
-  Bytes.Reader.filter
+  ?limits:Unlz4.Limits.t -> ?mode:Unlz4.Frame.mode ->
+  ?dictionary:Unlz4.Dictionary.t ->
+  ?resolve_dictionary:(int32 -> Unlz4.Dictionary.t option) ->
+  unit -> Bytes.Reader.filter
 
 val decompress_writes :
-  ?limits:Lz4.Limits.t -> ?dictionary:Lz4.Dictionary.t ->
-  ?resolve_dictionary:(int32 -> Lz4.Dictionary.t option) ->
-  Bytes.Writer.filter
+  ?limits:Unlz4.Limits.t -> ?dictionary:Unlz4.Dictionary.t ->
+  ?resolve_dictionary:(int32 -> Unlz4.Dictionary.t option) ->
+  unit -> Bytes.Writer.filter
 ```
+
+The `unit` argument erases the LZ4 options so the result is an ordinary Bytesrw filter.
 
 Reader filtering is pull based. The output reader defaults its position to
 zero and chooses a documented positive slice length. An upstream slice is
@@ -298,20 +364,35 @@ writing downstream, accounting for nonzero starting positions. Wrapped readers
 must also guarantee that their own counters do not overflow: `Reader.read`
 advances its counter before the adapter sees the returned slice, and its slice
 length is only a hint. Document this source-reader precondition explicitly.
-The first implementation must document a tested backend-specific cap and
-return `Limit_exceeded` before crossing its own limit; it must never silently
-wrap. The core incremental API remains the
-path for larger JS streams. A portable conservative adapter cap is 2^30 - 1
-bytes until wider counter behavior is demonstrated in the compatibility spike.
+The adapter caps its decoded output at `max_int - pos` by tightening the
+decoder's `max_output`, so the filter reports `Limit_exceeded` before its own
+position could wrap: 2^62 - 1 natively on 64-bit hosts, 2^30 - 1 natively on
+32-bit hosts, 2^31 - 1 under js_of_ocaml and Melange. A test starts the
+filter just below `max_int` on every backend. The core incremental API remains
+the path for larger JS streams.
 
-Bytesrw's inspected checkout uses ocamlbuild/topkg and does not provide Dune
-Melange artifacts. Pure OCaml source alone does not establish Melange support.
-First test its base `.ml`/`.mli`, including channel helpers and error extensions,
-under both JS toolchains. Prefer upstream Melange packaging; if needed, use an
-explicit, pinned, ISC-preserving compatibility build of the base source.
-Never ship a lookalike Bytesrw module with incompatible type identity. If that
-build cannot be made usable, release the portable core first and mark the
-Melange Bytesrw adapter unsupported until resolved.
+Bytesrw is packaged with ocamlbuild/topkg and ships no Melange artifacts, and
+its `Bytes.Slice` interface mentions `Bigarray`, which Melange's standard
+library lacks. Resolution, verified by the compatibility spike (Bytesrw 0.4.1,
+Melange 7.0.1, OCaml 4.14.4):
+
+- [melange-bigarray](https://github.com/TheCBaH/melange-bigarray), pinned by
+  commit, provides `melange-bigarray.compat`, an unwrapped `Bigarray` module for
+  rebuilding dependencies that use plain `Bigarray`.
+- The repository's Melange build copies the *installed* Bytesrw sources
+  (`bytesrw.ml`, `bytesrw.mli`, `bytesrw_fmt.ml`, `bytesrw_fmt.mli`, via
+  `%{lib:bytesrw:...}`) unmodified, ISC header included, into a Melange-only,
+  unwrapped library. The Melange `Bytesrw` therefore has the same source and
+  version as the native one, and is the only `Bytesrw` in the Melange build.
+- With that, the shared Bytesrw tests run unchanged under Melange, and native
+  and Melange produce identical `Int32`/`Int64` results.
+
+This compatibility build is development and test infrastructure. It is not
+installed: shipping a module named `Bytesrw` from this package would be a
+lookalike. The installed Melange story for `unlz4-bytesrw` waits for upstream
+Melange packaging (or a separately published compatibility package); the
+installed core `unlz4` is supported on native and jsoo, and its Melange mode is
+exercised in-repo.
 
 ## JavaScript portability and XXH32
 
@@ -342,30 +423,42 @@ with backpressure. Backend-specific `Uint8Array` conversions belong in examples
 or a later interop package. Establish a copying conversion first; do not claim
 zero-copy portability between both JS runtimes.
 
-Target OCaml 4.14 and a current OCaml 5 release for native builds. Keep JS tools
-optional through separate build contexts/profiles. Propose Dune 3.20 and the
-Melange 1.0 Dune extension, then verify the floor in an isolated project. jsoo
-compiles bytecode; Melange needs its own library artifacts and emission stanza,
-as described by the [Melange build documentation](https://melange.re/v5.0.0/build-system.html).
-Select and lock known-working compiler/backend combinations in the first spike;
-do not inherit mltorch's compiler switch or dependency pins as library policy.
+Target OCaml 4.14 and current OCaml 5 releases for native builds. The
+devcontainer pins the known-working combination: OCaml 4.14.4 (default) and
+5.x, Dune 3.24.2, js_of_ocaml 6.4.1, Melange 7.0.1 (the `-414`/`-5x` variant
+matching the compiler), ocamlformat 0.28.1, and melange-bigarray by commit.
+The released packages require Dune 3.21 (the floor melange-bigarray needs) and
+use the Melange 1.0 Dune extension. jsoo compiles bytecode; Melange needs its
+own library artifacts and emission stanza, as described by the
+[Melange build documentation](https://melange.re/v5.0.0/build-system.html).
+
+Dune cannot make a library's `modes` conditional, and declaring `melange` mode
+puts `melc` rules into `@all`. The Melange build is therefore a parallel tree
+under `melange/` that `copy_files` the same sources and is enabled only when
+`UNLZ4_MELANGE=true`; the native stanzas are disabled in that configuration.
+Release builds (`dune build -p unlz4`) never need Melange.
 
 ## Standalone repository and upstream submodule
 
 ```text
-ocaml-lz4/
-  dune-project, README.md, LICENSE, .gitmodules
-  lz4.opam, lz4-bytesrw.opam
-  docs/design.md
-  src/                       # Lz4 facade and private block/frame/hash modules
-  bytesrw/                   # Lz4_bytesrw
-  test/shared/               # Same assertions on every backend
-  test/native/, test/jsoo/, test/melange/
-  test/corpus/               # Compressed bytes, plaintext/dictionary, manifest
-  test/reference/            # Small original C oracle/generator
-  tools/                     # Reproducible generation and corpus validation
-  examples/                  # Native Bytesrw and asynchronous JS drivers
-  vendor/lz4/                # Git submodule; development only
+lz4/                          # repository root (GitHub: ocaml-unlz4)
+  dune-project, Makefile, README.md, LICENSE, .gitmodules, .ocamlformat
+  unlz4.opam, unlz4-bytesrw.opam  # generated from dune-project
+  .devcontainer/              # Dockerfile + devcontainer.json; CI runs inside it
+  .github/workflows/ci.yml    # devcontainer-based matrix
+  docs/design.md, docs/plan.md, docs/tracker.md
+  src/                        # Unlz4 facade and private block/frame/hash modules
+  bytesrw/                    # Unlz4_bytesrw
+  test/support/               # Shared harness, PRNG, fixtures loader
+  test/shared/                # Same assertions on every backend
+  test/native/, test/jsoo/    # Runners
+  melange/                    # UNLZ4_MELANGE=true mirror: core, adapter, tests
+  test/corpus/                # Compressed bytes, plaintext/dictionary, manifest
+  test/reference/             # Small original C oracle/generator
+  test/consumer/              # Installed-package consumer project
+  tools/                      # Corpus embedding, generation and validation
+  examples/                   # Native Bytesrw and asynchronous JS drivers
+  vendor/lz4/                 # Git submodule; development only
 ```
 
 Require `https://github.com/lz4/lz4.git` as `vendor/lz4`, pinned initially to
@@ -381,9 +474,8 @@ Release archives must contain sufficient fixtures to test without initialized
 submodules. An upstream update is a reviewed gitlink change with regenerated
 fixtures, their manifest changes, and differential validation.
 
-For this document only, upstream was cloned to a temporary directory for
-inspection; it is removed after research. No submodule or library skeleton is
-added to mltorch as part of the design-document task.
+The submodule is present at the pinned commit; `make reference-build`
+compiles the oracle from it.
 
 ## Reusing upstream tests and generating new ones
 
@@ -462,10 +554,11 @@ reproducer fixtures must not require rerunning the random generator at test time
 
 ## Development commands, CI and licensing
 
-Proposed library targets, to implement with the code: `dune runtest` for native
-fixtures; `@runtest-jsoo`, `@runtest-melange`, and `@runtest-browser` for JS;
-explicit `reference-build`, `reference-test`, `corpus-generate`, and
-`corpus-check` development commands. JS jobs run both the core and any supported
+Library targets: `make test` (`dune build @runtest`) for native fixtures;
+`make test-js` (`@runtest-jsoo`) and `make test-melange` (`UNLZ4_MELANGE=true`,
+`@runtest-melange`) for JS (a browser smoke test is deferred, see the tracker); explicit
+`reference-build`, `reference-test`, `corpus-generate`, and `corpus-check`
+development commands; `make ci` is what CI runs on every leg. JS jobs run both the core and any supported
 Bytesrw adapter. Browser smoke tests import bundles without Node APIs and decode
 binary bytes containing zero and values above 127.
 
@@ -487,8 +580,8 @@ checks validate the reference tooling only; no OCaml decoder exists yet.
 
 Do not use the upstream full suite as the ordinary library test target: it
 includes C benchmarks and large scenarios. JS fixture replay never compiles C.
-CI must test the standalone checkout and release archive without mltorch and
-without a populated reference submodule. Record backend versions, fixture
+CI must test the standalone checkout and release archive without a populated
+reference submodule. Record backend versions, fixture
 digests, and test counts so omissions cannot appear as success.
 
 Choose the standalone library's license explicitly before publishing. Upstream
@@ -521,8 +614,13 @@ keep it under the shared conformance suite.
 5. Broaden differential/mutation coverage, browser checks, reproducible corpus
    regeneration and release-archive testing. Measure performance before tuning.
 
-Finalize package names/license, toolchain minimums, default total-output and
-frame/skip limits, the exact metadata/error API, and Bytesrw's Melange packaging
-after the initial spike. These are implementation decisions; portable decoding,
-bounded block storage, checksum verification, deterministic tests, and absence
-of C runtime dependencies are requirements.
+The milestone breakdown and exit criteria are in [plan.md](plan.md).
+
+Decisions taken after the initial spike: package names `unlz4`/`unlz4-bytesrw`
+(see Naming); license MIT, matching the author's sibling libraries and
+compatible with upstream's BSD-2-Clause `lib/` (no upstream code is copied
+into the runtime); the toolchain above; `Limits.default` as described under
+Public API; and the Melange Bytesrw resolution above. Still open: publishing an
+installable Melange Bytesrw adapter, which depends on upstream packaging.
+Portable decoding, bounded block storage, checksum verification, deterministic
+tests, and absence of C runtime dependencies remain requirements.

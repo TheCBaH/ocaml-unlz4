@@ -1,0 +1,8 @@
+(copy_files# ../../../test/shared_bytesrw/*.ml)
+
+(library
+ (name unlz4_bytesrw_tests)
+ (modes melange)
+ (libraries unlz4 unlz4_bytesrw unlz4_test_support bytesrw_melange)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))

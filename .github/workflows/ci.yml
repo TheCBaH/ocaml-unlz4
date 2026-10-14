@@ -1,0 +1,93 @@
+name: ci
+
+# Every leg runs inside the repository devcontainer (.devcontainer/), built by
+# TheCBaH/devcontainer-action and cached in the repository's container registry.
+#
+# The 64-bit legs ("full") also run the js_of_ocaml and Melange suites, the upstream reference
+# build and corpus reproducibility, the installed-consumer build and the release-archive test.
+# The 32-bit legs run the native suite without the vendor/lz4 submodule; they are the ones that
+# prove 31-bit native-int safety.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  matrix:
+    runs-on: ubuntu-slim
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+    - name: matrix
+      id: matrix
+      run: |
+        python3 - <<'EOF2'
+        import json, os
+        matrix = []
+        for ver in ["4.14.4", "5.4.1"]:
+            matrix.append({"os": "ubuntu-24.04",     "ocaml_version": ver, "platform": "linux/amd64", "full": True})
+            matrix.append({"os": "ubuntu-24.04-arm", "ocaml_version": ver, "platform": "linux/arm64", "full": True})
+        matrix.append({"os": "ubuntu-24.04",     "ocaml_version": "4.14.4", "platform": "linux/i386",   "full": False})
+        matrix.append({"os": "ubuntu-24.04-arm", "ocaml_version": "4.14.4", "platform": "linux/arm/v7", "full": False})
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write("matrix<<__OUTPUT__\n%s\n__OUTPUT__\n" % json.dumps(matrix))
+        EOF2
+  ci:
+    needs: matrix
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    steps:
+    - name: checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: ${{ matrix.full }}
+    - name: devcontainer
+      uses: TheCBaH/devcontainer-action/devcontainer@v1
+      id: devcontainer
+      env:
+        OCAML_VERSION: ${{ matrix.ocaml_version }}
+      with:
+        variant: ${{ matrix.ocaml_version }}
+        platform: ${{ matrix.platform }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: setup
+      run: |
+        echo 'EXEC=${{ steps.devcontainer.outputs.exec }}' >> $GITHUB_ENV
+    - name: versions
+      run: |
+        ${{ env.EXEC }} sh -c 'opam exec -- ocamlfind ocamlopt -version; opam exec -- dune --version; opam list --columns=name,version dune js_of_ocaml-compiler melange melange-bigarray bytesrw ocamlformat 2>/dev/null; node --version 2>/dev/null || true'
+    - name: ci
+      run: |
+        ${{ env.EXEC }} make ci
+    - name: test-js
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make test-js
+    - name: test-melange
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make test-melange
+    - name: reference-test
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make reference-test
+    - name: corpus reproducibility
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make corpus-generate
+        git diff --exit-code -- test/corpus
+    - name: consumer-test and release-test
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make consumer-test release-test
+    - name: bench
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make bench bench-js

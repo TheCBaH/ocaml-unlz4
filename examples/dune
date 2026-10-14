@@ -1,0 +1,7 @@
+; unlz4_cat: decompress files or stdin to stdout through the Bytesrw reader filter.
+
+(executable
+ (name unlz4_cat)
+ (libraries unlz4 unlz4_bytesrw bytesrw)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))
