@@ -18,11 +18,5 @@
   unlz4_js.bc.js
   (:frame %{project_root}/test/reference/corpus/f-64k-linked.lz4))
  (action
-  (progn
-   (with-stdout-to
-    js.out
-    (run node stream.js %{frame}))
-   (with-stdout-to
-    native.out
-    (run %{exe:../unlz4_cat.exe} %{frame}))
-   (run cmp js.out native.out))))
+  (system
+   "node stream.js %{frame} > js.out && %{exe:../unlz4_cat.exe} %{frame} > native.out && cmp js.out native.out")))
