@@ -5,7 +5,7 @@ UPSTREAM = vendor/lz4
 UPSTREAM_LIB = $(UPSTREAM)/lib
 
 .PHONY: deps build test test-js test-melange bench bench-js fmt fmt-check \
-	reference-test corpus-generate corpus-check consumer-test release-test ci clean
+	test-counts reference-test corpus-generate corpus-check consumer-test release-test ci clean
 
 # bytesrw is not a dependency of unlz4: it only enables the examples/bytesrw adapter and its tests.
 deps:
@@ -25,6 +25,15 @@ test-js:
 # The shared suites under Melange and Node, through the melange/ mirror (see melange/dune).
 test-melange:
 	UNLZ4_MELANGE=true $(DUNE) build @melange @runtest-melange
+
+# Reruns the shared suites on every backend and fails unless each ran the same number of cases.
+test-counts:
+	@count() { sed -n "s/^backend $$1: \([0-9]*\) cases.*/\1/p"; }; \
+	n=$$($(DUNE) build --force @runtest 2>&1 | count native); \
+	j=$$($(DUNE) build --force @runtest-jsoo 2>&1 | count jsoo); \
+	m=$$(UNLZ4_MELANGE=true $(DUNE) build --force @melange @runtest-melange 2>&1 | count melange); \
+	echo "cases: native=$$n jsoo=$$j melange=$$m"; \
+	test -n "$$n" && test "$$n" = "$$j" && test "$$n" = "$$m"
 
 bench:
 	$(DUNE) exec bench/bench.exe

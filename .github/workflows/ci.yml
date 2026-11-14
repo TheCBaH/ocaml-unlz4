@@ -75,6 +75,10 @@ jobs:
       if: matrix.full
       run: |
         ${{ env.EXEC }} make test-melange
+    - name: test-counts
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make test-counts
     - name: reference-test
       if: matrix.full
       run: |
