@@ -179,7 +179,7 @@ module Frame : sig
       unconsumed rest. Decoded output can be delivered before a later content checksum or size
       error; success is only established by [Frame_end]/[Stream_end]. Errors are terminal: later
       calls return the same error, whatever [eof] they pass. Terminal statuses are sticky. Raises [Invalid_argument] for bad
-      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned). *)
+      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned) (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
 
   val info : t -> info option
   (** The descriptor of the current or last modern frame. *)

@@ -41,6 +41,7 @@ type t = {
   resolve : (int32 -> Dictionary.t option) option;
   mutable phase : phase;
   mutable error : Error.t option;
+  mutable poisoned : bool;
   hdr : bytes;
   mutable hdr_len : int;
   mutable hdr_need : int;
@@ -90,6 +91,7 @@ let create ?(limits = Limits.default) ?(mode = Concatenated) ?dictionary ?resolv
     resolve = resolve_dictionary;
     phase = Magic;
     error = None;
+    poisoned = false;
     hdr = Bytes.create 16;
     hdr_len = 0;
     hdr_need = 4;
@@ -312,6 +314,7 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
   if dst_off < 0 || dst_len < 0 || dst_off > Bytes.length dst - dst_len then
     invalid_arg "Unlz4.Frame.decode: invalid destination range";
   if src == dst then invalid_arg "Unlz4.Frame.decode: source and destination are the same buffer";
+  if t.poisoned then invalid_arg "Unlz4.Frame.decode: decoder aborted by an exception";
   match t.error with
   | Some e -> Error e
   | None -> (
@@ -498,7 +501,11 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
              through total_out. *)
           ignore (finish Need_input);
           t.error <- Some e;
-          Error e)
+          Error e
+      | exception e ->
+          ignore (finish Need_input);
+          t.poisoned <- true;
+          raise e)
 
 (* Pulls input through [read] into [inb] and pushes output through [write]. Input is read only
    when the decoder needs it, so pending output is delivered before [read] can block. One self
