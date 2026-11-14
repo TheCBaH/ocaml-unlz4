@@ -2,3 +2,4 @@ _build/
 *.install
 /_consumer/
 /_release/
+/bench.txt
