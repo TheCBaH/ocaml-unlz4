@@ -551,20 +551,19 @@ let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
     else limits
   in
   let t = create ~limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
-  (* The whole input in one read, so payloads decode in place. *)
+  (* The whole input in one read, so payloads decode in place. The decoder never writes its source
+     and the output buffer is separate, so [s] is read without a copy. *)
   let pending = ref true in
-  let read b off _ =
+  let read _ _ _ =
     if !pending then (
       pending := false;
-      Bytes.blit_string s 0 b off (String.length s);
       String.length s)
     else 0
   in
   let out = Buffer.create (min ((String.length s * 2) + 16) (1 lsl 20)) in
   match
-    drive t
-      ~inb:(Buf.create (max 1 (String.length s)))
-      ~out:(Buf.create chunk) ~read ~write:(Buffer.add_subbytes out)
+    drive t ~inb:(Bytes.unsafe_of_string s) ~out:(Buf.create chunk) ~read
+      ~write:(Buffer.add_subbytes out)
   with
   | Ok () -> Ok (Buffer.contents out)
   | Error e -> Error e
