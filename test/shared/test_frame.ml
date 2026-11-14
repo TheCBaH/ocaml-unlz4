@@ -392,6 +392,23 @@ let cases =
         | Error e ->
             check_int64 ~msg:"decoded_offset" ~expected:4L (E.decoded_offset e);
             check_int64 ~msg:"total_out" ~expected:0L (F.total_out d));
+    case "frame: a declared content size only pre-sizes the output, within a cap" (fun () ->
+        let plain = "hello, world" in
+        let lie size =
+          Builder.frame
+            ~f:{ b with content_size = Some size }
+            ~content:plain
+            [ Builder.Compressed (lb plain) ]
+        in
+        (match F.decompress (lie (Int64.of_int (String.length plain))) with
+        | Ok s -> check_string ~expected:plain s
+        | Error e -> failf "%s" (show_error e));
+        let huge = lie 0x7FFFFFFFFFFFL in
+        if Sys.backend_type = Sys.Native then (
+          let before = Gc.allocated_bytes () in
+          (match F.decompress huge with Error _ -> () | Ok _ -> failf "size mismatch accepted");
+          let mib = (Gc.allocated_bytes () -. before) /. 1048576. in
+          check ~msg:(Printf.sprintf "allocated %.1f MiB" mib) (mib < 40.)));
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded

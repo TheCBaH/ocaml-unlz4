@@ -590,6 +590,20 @@ let decompress_with ?limits ?dictionary ?resolve_dictionary ?(buffer_size = chun
   let t = create ?limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
   drive t ~inb:(Buf.create buffer_size) ~out:(Buf.create buffer_size) ~read ~write
 
+(* The content size the first frame declares, when it is a plausible size for a pre-sized buffer. *)
+let declared_size s limits =
+  let cap = Int64.of_int (min (1 lsl 24) Sys.max_string_length) in
+  if String.length s >= 14 && Char.code s.[4] land 0x08 <> 0 then
+    let b = Bytes.unsafe_of_string s in
+    if Int32.equal (get32 b 0) magic_modern then
+      let lo = u32_to_int64 (get32 b 6) and hi = get32 b 10 in
+      let n = Int64.logor lo (Int64.shift_left (Int64.of_int32 hi) 32) in
+      if Int32.equal hi 0l && Int64.compare n 0L > 0 then
+        Int64.to_int (min n (min cap limits.Limits.max_output))
+      else 0
+    else 0
+  else 0
+
 let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
   let cap = Int64.of_int Sys.max_string_length in
   let limits =
@@ -606,7 +620,9 @@ let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
       String.length s)
     else 0
   in
-  let out = Buffer.create (min ((String.length s * 2) + 16) (1 lsl 20)) in
+  let out =
+    Buffer.create (max (min ((String.length s * 2) + 16) (1 lsl 20)) (declared_size s limits))
+  in
   match
     drive t ~inb:(Bytes.unsafe_of_string s) ~out:(Buf.create chunk) ~read
       ~write:(Buffer.add_subbytes out)
