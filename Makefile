@@ -72,14 +72,12 @@ consumer-test:
 	  $(DUNE) build --root . ./consumer.exe && ./_build/default/consumer.exe
 	rm -rf _consumer
 
-# Builds and tests a copy of the tracked (and new, unignored) files plus the vendor/lz4 submodule's:
-# what a release archive must contain for its tests to run.
-release-test: $(UPSTREAM_LIB)/lz4.c
+# Builds and tests the committed tree exactly as a release archive holds it: no submodule, so the
+# tests must run from the checked-in corpus alone.
+release-test:
 	rm -rf _release && mkdir -p _release
-	{ git ls-files -z --cached --others --exclude-standard | grep -z -v -x '$(UPSTREAM)'; \
-	  git -C $(UPSTREAM) ls-files -z | sed -z 's|^|$(UPSTREAM)/|'; } | \
-	  xargs -0 cp --parents -t _release
-	cd _release && $(DUNE) build -p unlz4 @install @runtest
+	git archive HEAD | tar -x -C _release
+	cd _release && $(DUNE) build --root . -p unlz4 @install @runtest
 	rm -rf _release
 
 ci: fmt-check build test
