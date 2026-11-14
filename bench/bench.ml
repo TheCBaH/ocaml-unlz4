@@ -57,4 +57,14 @@ let () =
           (String.length plain)
           (bytes /. dt /. 1e6)))
     C.fixtures;
+  (let src, expected = Unlz4_test_support.Builder.tiny_linked 100_000 in
+   let n, dt =
+     measure (fun () ->
+         match Unlz4.Frame.decompress src with
+         | Ok s -> assert (String.length s = String.length expected)
+         | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e))
+   in
+   Printf.printf "%-22s %10d %10d %10.1f\n%!" "tiny-linked-blocks" (String.length src)
+     (String.length expected)
+     (float_of_int (n * String.length expected) /. dt /. 1e6));
   Printf.printf "%-22s %32.1f\n" "overall" (!total_bytes /. !total_time /. 1e6)

@@ -80,6 +80,9 @@ type t = {
 }
 
 let window = Dictionary.window
+
+(* Extra room in a linked frame's buffer, so the history is moved once per this much output. *)
+let slide_slack = 2 * window
 let magic_modern = 0x184D2204l
 let magic_legacy = 0x184C2102l
 
@@ -161,7 +164,7 @@ let start_field t at need =
 (* Allocates the frame buffers and seeds the history once the descriptor is accepted. *)
 let start_blocks t (dict : Dictionary.t) =
   let dlen = Bytes.length dict.data in
-  let need = (if t.independent then dlen else window) + t.block_max in
+  let need = if t.independent then dlen + t.block_max else window + t.block_max + slide_slack in
   if Bytes.length t.win < need then t.win <- Buf.create need;
   Bytes.blit dict.data 0 t.win 0 dlen;
   t.hist_len <- dlen;
@@ -287,7 +290,7 @@ let decode_block t src off =
 let finish_block t =
   (if not t.independent then
      let e = t.out_end in
-     if e > window then (
+     if e + t.block_max > Bytes.length t.win then (
        Bytes.blit t.win (e - window) t.win 0 window;
        t.hist_len <- window)
      else t.hist_len <- e);

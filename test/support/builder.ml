@@ -160,3 +160,19 @@ let skippable ?(nibble = 0) payload =
   add_u32 b (Int32.of_int (String.length payload));
   Buffer.add_string b payload;
   Buffer.contents b
+
+(* A linked frame of [n] tiny blocks, each matching a pseudo-random distance into the previous 64
+   KiB, and the text it decodes to. *)
+let tiny_linked n =
+  let out = Buffer.create (n * 16) in
+  let blocks =
+    List.init n (fun i ->
+        let lits = Printf.sprintf "%03d" (i mod 1000) in
+        let hl = min (Buffer.length out) 65536 in
+        let history = Buffer.sub out (Buffer.length out - hl) hl in
+        let off = min (hl + String.length lits) (1 + (i * 7919 mod 65535)) in
+        let seqs = [ (lits, Some (off, 8)); ("tail!", None) ] in
+        Buffer.add_string out (expand ~history seqs);
+        Compressed (block seqs))
+  in
+  (frame ~f:{ flags with independent = false } blocks, Buffer.contents out)

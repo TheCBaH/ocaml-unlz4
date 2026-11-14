@@ -308,6 +308,12 @@ let cases =
         | _ -> failf "poisoned decoder accepted"
         | exception Invalid_argument _ -> ());
         check_int ~msg:"resolver calls" ~expected:1 !calls);
+    case "frame: many tiny linked blocks across the history window" (fun () ->
+        let src, expected = Builder.tiny_linked 20_000 in
+        check_string ~expected (D.ok src);
+        match F.decompress src with
+        | Ok s -> check_string ~expected s
+        | Error e -> failf "%s" (show_error e));
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded
