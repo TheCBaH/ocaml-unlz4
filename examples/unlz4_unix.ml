@@ -7,8 +7,11 @@
 let rec read fd b off len =
   try Unix.read fd b off len with Unix.Unix_error (Unix.EINTR, _, _) -> read fd b off len
 
-(* Unix.write loops until everything is written. *)
-let write fd b off len = ignore (Unix.write fd b off len : int)
+let rec write fd b off len =
+  if len > 0 then
+    match Unix.single_write fd b off len with
+    | n -> write fd b (off + n) (len - n)
+    | exception Unix.Unix_error (Unix.EINTR, _, _) -> write fd b off len
 
 let () =
   let fd =

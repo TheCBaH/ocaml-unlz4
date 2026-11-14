@@ -285,6 +285,29 @@ let cases =
                Some d)
              (mk ~id:hi ~independent:true ()));
         check_int32 ~expected:hi !seen);
+    case "frame: a foreign exception from the resolver poisons the decoder" (fun () ->
+        let id = 0xCAFEF00Dl in
+        let src =
+          Builder.frame
+            ~f:{ b with independent = true; dict_id = Some id }
+            [ Builder.Compressed (lb "abc") ]
+        in
+        let calls = ref 0 in
+        let resolve_dictionary _ =
+          incr calls;
+          failwith "resolver"
+        in
+        let d = F.create ~resolve_dictionary () in
+        let dst = Bytes.create 16 in
+        let call () =
+          F.decode d ~src:(Bytes.of_string src) ~src_off:0 ~src_len:(String.length src) ~eof:true
+            ~dst ~dst_off:0 ~dst_len:16 ()
+        in
+        (match call () with _ -> failf "no exception" | exception Failure _ -> ());
+        (match call () with
+        | _ -> failf "poisoned decoder accepted"
+        | exception Invalid_argument _ -> ());
+        check_int ~msg:"resolver calls" ~expected:1 !calls);
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded
@@ -398,6 +421,20 @@ let cases =
             check_kind E.Invalid_frame e;
             check_int64 ~msg:"error offset" ~expected (E.compressed_offset e)
         | Ok _ -> failf "garbage accepted");
+    case "frame: a sticky error is repeated on later calls, even after eof:true" (fun () ->
+        let d = F.create () in
+        let junk = Bytes.of_string "junk" and dst = Bytes.create 16 in
+        let call eof =
+          F.decode d ~src:junk ~src_off:0 ~src_len:4 ~eof ~dst ~dst_off:0 ~dst_len:16 ()
+        in
+        let first = match call true with Error e -> e | Ok _ -> failf "garbage accepted" in
+        check_kind E.Invalid_frame first;
+        List.iter
+          (fun eof ->
+            match call eof with
+            | Error e -> check_kind E.Invalid_frame e
+            | Ok _ -> failf "error not sticky")
+          [ true; false; true ]);
     case "frame: many empty blocks do not grow the stack" (fun () ->
         let blocks = List.init 100_000 (fun _ -> Builder.Stored "") in
         check_string ~expected:"" (D.ok (Builder.frame blocks)));
