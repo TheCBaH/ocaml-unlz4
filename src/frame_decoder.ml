@@ -312,12 +312,12 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
   if dst_off < 0 || dst_len < 0 || dst_off > Bytes.length dst - dst_len then
     invalid_arg "Unlz4.Frame.decode: invalid destination range";
   if src == dst then invalid_arg "Unlz4.Frame.decode: source and destination are the same buffer";
-  if t.eof_seen && not eof then invalid_arg "Unlz4.Frame.decode: input already ended (eof:true)";
-  if t.eof_seen && src_len <> t.eof_remaining then
-    invalid_arg "Unlz4.Frame.decode: after eof:true, pass exactly the unconsumed input";
   match t.error with
   | Some e -> Error e
   | None -> (
+      if t.eof_seen && not eof then invalid_arg "Unlz4.Frame.decode: input already ended (eof:true)";
+      if t.eof_seen && src_len <> t.eof_remaining then
+        invalid_arg "Unlz4.Frame.decode: after eof:true, pass exactly the unconsumed input";
       let allowed = Int64.sub t.limits.max_input t.total_in in
       let lim_len =
         if Int64.compare allowed (Int64.of_int src_len) < 0 then Int64.to_int allowed else src_len

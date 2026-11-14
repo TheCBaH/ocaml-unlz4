@@ -398,6 +398,20 @@ let cases =
             check_kind E.Invalid_frame e;
             check_int64 ~msg:"error offset" ~expected (E.compressed_offset e)
         | Ok _ -> failf "garbage accepted");
+    case "frame: a sticky error is repeated on later calls, even after eof:true" (fun () ->
+        let d = F.create () in
+        let junk = Bytes.of_string "junk" and dst = Bytes.create 16 in
+        let call eof =
+          F.decode d ~src:junk ~src_off:0 ~src_len:4 ~eof ~dst ~dst_off:0 ~dst_len:16 ()
+        in
+        let first = match call true with Error e -> e | Ok _ -> failf "garbage accepted" in
+        check_kind E.Invalid_frame first;
+        List.iter
+          (fun eof ->
+            match call eof with
+            | Error e -> check_kind E.Invalid_frame e
+            | Ok _ -> failf "error not sticky")
+          [ true; false; true ]);
     case "frame: many empty blocks do not grow the stack" (fun () ->
         let blocks = List.init 100_000 (fun _ -> Builder.Stored "") in
         check_string ~expected:"" (D.ok (Builder.frame blocks)));

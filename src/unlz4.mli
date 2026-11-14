@@ -178,8 +178,8 @@ module Frame : sig
       means the range is the last input; later calls must pass [eof:true] and exactly the
       unconsumed rest. Decoded output can be delivered before a later content checksum or size
       error; success is only established by [Frame_end]/[Stream_end]. Errors are terminal: later
-      calls return the same error. Terminal statuses are sticky. Raises [Invalid_argument] for bad
-      ranges, [src == dst], or a violated [eof] contract. *)
+      calls return the same error, whatever [eof] they pass. Terminal statuses are sticky. Raises [Invalid_argument] for bad
+      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned). *)
 
   val info : t -> info option
   (** The descriptor of the current or last modern frame. *)
