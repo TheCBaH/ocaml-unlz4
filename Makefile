@@ -5,7 +5,7 @@ UPSTREAM = vendor/lz4
 UPSTREAM_LIB = $(UPSTREAM)/lib
 
 .PHONY: deps build test test-js test-melange bench bench-js fmt fmt-check \
-	test-counts reference-test corpus-generate corpus-check consumer-test release-test ci clean
+	test-counts reference-test fuzz corpus-generate corpus-check consumer-test release-test ci clean
 
 # bytesrw is not a dependency of unlz4: it only enables the examples/bytesrw adapter and its tests.
 deps:
@@ -58,6 +58,10 @@ $(UPSTREAM_LIB)/lz4.c:
 # Bounded upstream self-tests: they validate the reference build, not this library.
 reference-test: $(UPSTREAM_LIB)/lz4.c corpus-check
 	UNLZ4_REFERENCE=true $(DUNE) build @reference-test
+
+# Differential fuzz of Unlz4.Block against liblz4 (UNLZ4_FUZZ_ITERATIONS, UNLZ4_FUZZ_SEED).
+fuzz: $(UPSTREAM_LIB)/lz4.c
+	UNLZ4_REFERENCE=true $(DUNE) build @fuzz --force
 
 REF_EXE = _build/default/test/reference/unlz4_ref.exe
 

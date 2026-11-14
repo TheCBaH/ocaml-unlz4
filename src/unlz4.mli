@@ -98,7 +98,17 @@ module Limits : sig
   (** [with_max_output t n] is [t] with [max_output] replaced by [n]. *)
 end
 
-(** Raw LZ4 blocks: a compressed range with no header, whose decoded size the caller bounds. *)
+(** Raw LZ4 blocks: a compressed range with no header, whose decoded size the caller bounds.
+
+    Blocks are validated against the format specification: offset zero is rejected, the last
+    sequence carries only literals, and when the block has a match the last 5 bytes are literals and
+    the last match starts at least 12 bytes before the end. liblz4's safe decoder is looser in
+    places that depend on the output capacity: it can accept an offset of zero, four final literals
+    after a long match (19+ bytes; three after 274+), and, with a dictionary or a capacity above
+    the decoded size, fewer than 5 final literals or a last match closer than 12 bytes to the end.
+    Conversely it rejects every block but a lone zero token when the capacity is zero. A block that
+    this decoder accepts is accepted by liblz4 with the same output (checked by [make fuzz]);
+    blocks from conforming compressors are decoded identically. *)
 module Block : sig
   val decompress_into :
     ?dictionary:Dictionary.t ->

@@ -1,0 +1,22 @@
+; Differential fuzz of Unlz4.Block against liblz4 (vendor/lz4), run bounded by `make fuzz`. Enabled
+; only with UNLZ4_REFERENCE=true.
+
+(executable
+ (name fuzz)
+ (libraries unlz4 unlz4_test_support)
+ (foreign_stubs
+  (language c)
+  (names fuzz_stubs)
+  (include_dirs ../../vendor/lz4/lib)
+  (extra_deps
+   (glob_files %{project_root}/vendor/lz4/lib/*.h)
+   (glob_files %{project_root}/vendor/lz4/lib/lz4.c)))
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true)))
+
+(rule
+ (alias fuzz)
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true))
+ (action
+  (run %{exe:fuzz.exe})))
