@@ -79,6 +79,10 @@ jobs:
       if: matrix.full
       run: |
         ${{ env.EXEC }} make test-counts
+    - name: fuzz
+      if: matrix.full
+      run: |
+        ${{ env.EXEC }} make fuzz
     - name: reference-test
       if: matrix.full
       run: |
