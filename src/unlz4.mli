@@ -102,6 +102,7 @@ end
 module Block : sig
   val decompress_into :
     ?dictionary:Dictionary.t ->
+    ?prefix:int ->
     src:bytes ->
     src_off:int ->
     src_len:int ->
@@ -112,14 +113,18 @@ module Block : sig
     (int, Error.t) result
   (** Decodes exactly [src.[src_off .. src_off + src_len - 1]] into [dst] from [dst_off], writing
       at most [dst_len] bytes, and returns the number written. [dictionary] is the history that
-      precedes the block (for linked blocks, the tail of the previously decoded data). Errors:
+      precedes the block (for linked blocks, the tail of the previously decoded data). [prefix]
+      (default 0, at most [dst_off]) is the number of bytes of history already in [dst] just before
+      [dst_off], of which the last 64 KiB can be referenced; with linked blocks decoded into one
+      buffer it replaces passing a [dictionary] per block. Errors:
       [Invalid_block], [Truncated_input], or [Limit_exceeded] when the output does not fit. On
       error [dst.[dst_off ..]] may hold a decoded prefix; bytes outside the range are untouched.
-      Raises [Invalid_argument] for bad ranges or when [src == dst]. *)
+      Raises [Invalid_argument] for bad ranges, an invalid [prefix], or when [src == dst]. *)
 
   val decompress : ?dictionary:Dictionary.t -> max_output:int -> string -> (string, Error.t) result
   (** [decompress ~max_output s] decodes the block [s] whose decoded size is at most
-      [max_output]. *)
+      [max_output]. A buffer of [max_output] bytes is allocated up front, so keep it a tight
+      bound for untrusted input. *)
 end
 
 (** The LZ4 frame format, decoded incrementally. *)
