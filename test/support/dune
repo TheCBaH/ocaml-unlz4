@@ -1,6 +1,6 @@
 (library
  (name unlz4_test_support)
- (libraries unlz4)
+ (libraries unlz4 unlz4.private)
  (enabled_if
   (<> %{env:UNLZ4_MELANGE=false} true)))
 

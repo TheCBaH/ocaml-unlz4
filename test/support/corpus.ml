@@ -65,5 +65,5 @@ let summary () =
      upstream %s"
     (List.length fixtures) (List.length blocks) (List.length frames) total
     (List.length xxh32_vectors)
-    (Unlz4.Private.Xxh32.string (String.concat "" (List.map (fun f -> f.compressed) fixtures)))
+    (Xxh32.string (String.concat "" (List.map (fun f -> f.compressed) fixtures)))
     upstream

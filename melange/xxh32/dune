@@ -1,0 +1,11 @@
+(copy_files# ../../src/xxh32/*.ml)
+
+(copy_files# ../../src/xxh32/*.mli)
+
+(library
+ (name unlz4_private)
+ (public_name unlz4.private)
+ (wrapped false)
+ (modes melange)
+ (enabled_if
+  (= %{env:UNLZ4_MELANGE=false} true)))
