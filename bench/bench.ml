@@ -57,6 +57,52 @@ let () =
           (String.length plain)
           (bytes /. dt /. 1e6)))
     C.fixtures;
+  (* One-setting-at-a-time pairs over the same literal payload, with bytes allocated per run. *)
+  let module B = Unlz4_test_support.Builder in
+  let payload = Unlz4_test_support.Gen.generate Unlz4_test_support.Gen.Mix ~seed:5 (60_000 * 20) in
+  let blocks =
+    List.init 20 (fun i -> B.Compressed (B.literal_block (String.sub payload (i * 60_000) 60_000)))
+  in
+  let allocs = ref [] in
+  let pair name f =
+    let src = B.frame ~f ~content:payload blocks in
+    let run () =
+      match Unlz4.Frame.decompress src with
+      | Ok s -> assert (String.length s = String.length payload)
+      | Error e -> failwith (Format.asprintf "%a" Unlz4.Error.pp e)
+    in
+    run ();
+    let a0 = Gc.allocated_bytes () in
+    run ();
+    let alloc = Gc.allocated_bytes () -. a0 in
+    allocs := (name, alloc) :: !allocs;
+    let n, dt = measure run in
+    Printf.printf "%-22s %10d %10d %10.1f  alloc %.0f KiB\n%!" name (String.length src)
+      (String.length payload)
+      (float_of_int (n * String.length payload) /. dt /. 1e6)
+      (alloc /. 1024.)
+  in
+  let f = B.flags in
+  pair "pair-base" { f with B.independent = true; bd_code = 4 };
+  pair "pair-linked" { f with B.independent = false };
+  pair "pair-block-checksum" { f with B.independent = true; block_checksum = true };
+  pair "pair-content-checksum" { f with B.independent = true; content_checksum = true };
+  pair "pair-4m-blocks" { f with B.independent = true; bd_code = 7 };
+  (* Allocation is deterministic, unlike throughput, so it is the regression gate: a checksum or a
+     linked block must not allocate per block. js_of_ocaml reports no allocation. *)
+  (let get n = List.assoc n !allocs in
+   let base = get "pair-base" in
+   let check name limit =
+     if get name > limit then
+       failwith
+         (Printf.sprintf "%s allocates %.0f KiB, over %.0f KiB" name
+            (get name /. 1024.)
+            (limit /. 1024.))
+   in
+   check "pair-base" (6. *. 1048576.);
+   List.iter
+     (fun n -> check n (base +. 262144.))
+     [ "pair-linked"; "pair-block-checksum"; "pair-content-checksum" ]);
   (let src, expected = Unlz4_test_support.Builder.tiny_linked 100_000 in
    let n, dt =
      measure (fun () ->
