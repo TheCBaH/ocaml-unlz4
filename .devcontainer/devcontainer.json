@@ -12,6 +12,7 @@
             "userGid": "1000",
             "upgradePackages": "false"
         },
+        "ghcr.io/devcontainers/features/sshd:1": {},
         "ghcr.io/thecbah/ocaml-features/ocaml:1": {
             // CI sets OCAML_VERSION per matrix leg. bytesrw is only for the examples/bytesrw adapter.
             "version": "${localEnv:OCAML_VERSION:4.14.4}",
