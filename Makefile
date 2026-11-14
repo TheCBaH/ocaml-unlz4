@@ -77,7 +77,7 @@ consumer-test:
 release-test:
 	rm -rf _release && mkdir -p _release
 	git archive HEAD | tar -x -C _release
-	cd _release && $(DUNE) build --root . -p unlz4 @install @runtest
+	cd _release && $(DUNE) build -p unlz4 @install @runtest
 	rm -rf _release
 
 ci: fmt-check build test
