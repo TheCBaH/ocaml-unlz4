@@ -1,10 +1,8 @@
-(lang dune 3.21)
+(lang dune 3.20)
 
 (name unlz4)
 
 (using melange 1.0)
-
-(using directory-targets 0.1)
 
 (generate_opam_files true)
 
