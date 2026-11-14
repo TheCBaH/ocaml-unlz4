@@ -59,6 +59,9 @@ fixture name=f-64k-indep-bcs kind=frame file=f-64k-indep-bcs.lz4 size=103821 pla
 fixture name=f-256k-csize kind=frame file=f-256k-csize.lz4 size=184053 plain=mix:22:600000@0:600000 dict=- opts=bsid=5,linked=1,bcs=0,ccs=0,csize=1,level=0,dictid=0x00000000
 fixture name=f-1m-all kind=frame file=f-1m-all.lz4 size=92717 plain=mix:23:300000@0:300000 dict=- opts=bsid=6,linked=1,bcs=1,ccs=1,csize=1,level=0,dictid=0x00000000
 fixture name=f-4m kind=frame file=f-4m.lz4 size=7216 plain=rep:24:300000@0:300000 dict=- opts=bsid=7,linked=0,bcs=0,ccs=0,csize=0,level=0,dictid=0x00000000
+fixture name=f-4m-real kind=frame file=f-4m-real.lz4 size=406944 plain=mix:28:1300000@0:1300000 dict=- opts=bsid=7,linked=1,bcs=0,ccs=1,csize=0,level=0,dictid=0x00000000
+fixture name=f-1m-linked kind=frame file=f-1m-linked.lz4 size=340400 plain=mix:29:1100000@0:1100000 dict=- opts=bsid=6,linked=1,bcs=0,ccs=0,csize=0,level=0,dictid=0x00000000
+fixture name=f-flush-tiny kind=frame file=f-flush-tiny.lz4 size=41630 plain=mix:30:100000@0:100000 dict=- opts=bsid=4,linked=1,bcs=0,ccs=1,csize=0,level=0,dictid=0x00000000
 fixture name=f-lit-stored kind=frame file=f-lit-stored.lz4 size=150027 plain=lit:25:150000@0:150000 dict=- opts=bsid=4,linked=1,bcs=0,ccs=1,csize=0,level=0,dictid=0x00000000
 fixture name=f-hc12-linked kind=frame file=f-hc12-linked.lz4 size=37216 plain=mix:26:200000@0:200000 dict=- opts=bsid=4,linked=1,bcs=0,ccs=1,csize=0,level=12,dictid=0x00000000
 fixture name=f-hc9-indep kind=frame file=f-hc9-indep.lz4 size=50278 plain=mix:26:200000@0:200000 dict=- opts=bsid=4,linked=0,bcs=0,ccs=0,csize=0,level=9,dictid=0x00000000

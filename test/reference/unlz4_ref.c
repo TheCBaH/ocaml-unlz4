@@ -202,6 +202,25 @@ struct fprefs {
   unsigned dict_id;
 };
 
+/* Decodes the frame back with the upstream frame decoder, in small pieces, and compares. */
+static void verify_frame(const char *name, const unsigned char *c, size_t clen, const unsigned char *src,
+                         size_t n, const unsigned char *dsrc, size_t dn) {
+  LZ4F_dctx *dctx;
+  if (LZ4F_isError(LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION))) die(name);
+  unsigned char *d = xmalloc(n);
+  size_t ip = 0, op = 0, ret = 1;
+  while (ip < clen && ret != 0) {
+    size_t in = clen - ip < 1000 ? clen - ip : 1000, out = n - op;
+    ret = LZ4F_decompress_usingDict(dctx, d + op, &out, c + ip, &in, dsrc, dn, NULL);
+    if (LZ4F_isError(ret)) die(LZ4F_getErrorName(ret));
+    ip += in, op += out;
+  }
+  if (ret != 0 || ip != clen) die("incomplete upstream frame decode");
+  check_equal(name, d, op, src, n);
+  LZ4F_freeDecompressionContext(dctx);
+  free(d);
+}
+
 static void frame(const char *name, struct recipe plain, struct fprefs fp, const struct recipe *dict) {
   size_t n = plain.to - plain.from;
   unsigned char *src = make(plain);
@@ -231,27 +250,50 @@ static void frame(const char *name, struct recipe plain, struct fprefs fp, const
     clen = LZ4F_compressFrame(c, cap, src, n, &prefs);
   }
   if (LZ4F_isError(clen)) die(LZ4F_getErrorName(clen));
-  /* Decode back with the upstream frame decoder, in small pieces. */
-  LZ4F_dctx *dctx;
-  if (LZ4F_isError(LZ4F_createDecompressionContext(&dctx, LZ4F_VERSION))) die(name);
-  unsigned char *d = xmalloc(n);
-  size_t ip = 0, op = 0, ret = 1;
-  while (ip < clen && ret != 0) {
-    size_t in = clen - ip < 1000 ? clen - ip : 1000, out = n - op;
-    ret = LZ4F_decompress_usingDict(dctx, d + op, &out, c + ip, &in, dsrc, dn, NULL);
-    if (LZ4F_isError(ret)) die(LZ4F_getErrorName(ret));
-    ip += in, op += out;
-  }
-  if (ret != 0 || ip != clen) die("incomplete upstream frame decode");
-  check_equal(name, d, op, src, n);
-  LZ4F_freeDecompressionContext(dctx);
+  verify_frame(name, c, clen, src, n, dsrc, dn);
   char ds[128] = "-", opts[160];
   if (dict) recipe_string(ds, sizeof ds, *dict);
   snprintf(opts, sizeof opts, "bsid=%d,linked=%d,bcs=%d,ccs=%d,csize=%d,level=%d,dictid=0x%08x",
            (int)fp.bsid, fp.linked, fp.block_checksum, fp.content_checksum, fp.content_size, fp.level,
            fp.dict_id);
   write_fixture(name, "frame", c, clen, plain, ds, opts);
-  free(src), free(dsrc), free(c), free(d);
+  free(src), free(dsrc), free(c);
+}
+
+/* A linked frame built from many tiny flushed blocks (LZ4F_flush after every [chunk] bytes). */
+static void frame_flush(const char *name, struct recipe plain, struct fprefs fp, size_t chunk) {
+  size_t n = plain.to - plain.from;
+  unsigned char *src = make(plain);
+  LZ4F_preferences_t prefs;
+  memset(&prefs, 0, sizeof prefs);
+  prefs.frameInfo.blockSizeID = fp.bsid;
+  prefs.frameInfo.blockMode = fp.linked ? LZ4F_blockLinked : LZ4F_blockIndependent;
+  prefs.frameInfo.contentChecksumFlag = fp.content_checksum ? LZ4F_contentChecksumEnabled : LZ4F_noContentChecksum;
+  size_t cap = LZ4F_compressBound(chunk, &prefs) * (n / chunk + 2) + 64;
+  unsigned char *c = xmalloc(cap);
+  LZ4F_cctx *cctx;
+  if (LZ4F_isError(LZ4F_createCompressionContext(&cctx, LZ4F_VERSION))) die(name);
+  size_t clen = LZ4F_compressBegin(cctx, c, cap, &prefs), r;
+  if (LZ4F_isError(clen)) die(LZ4F_getErrorName(clen));
+  for (size_t off = 0; off < n; off += chunk) {
+    size_t len = n - off < chunk ? n - off : chunk;
+    r = LZ4F_compressUpdate(cctx, c + clen, cap - clen, src + off, len, NULL);
+    if (LZ4F_isError(r)) die(LZ4F_getErrorName(r));
+    clen += r;
+    r = LZ4F_flush(cctx, c + clen, cap - clen, NULL);
+    if (LZ4F_isError(r)) die(LZ4F_getErrorName(r));
+    clen += r;
+  }
+  r = LZ4F_compressEnd(cctx, c + clen, cap - clen, NULL);
+  if (LZ4F_isError(r)) die(LZ4F_getErrorName(r));
+  clen += r;
+  LZ4F_freeCompressionContext(cctx);
+  verify_frame(name, c, clen, src, n, NULL, 0);
+  char opts[160];
+  snprintf(opts, sizeof opts, "bsid=%d,linked=%d,bcs=0,ccs=%d,csize=0,level=0,dictid=0x00000000",
+           (int)fp.bsid, fp.linked, fp.content_checksum);
+  write_fixture(name, "frame", c, clen, plain, "-", opts);
+  free(src), free(c);
 }
 
 static void xxh32_vectors(void) {
@@ -318,6 +360,13 @@ int main(int argc, char **argv) {
   frame("f-1m-all", whole(MIX, 23, 300000), p, NULL);
   p = def, p.bsid = LZ4F_max4MB, p.linked = 0;
   frame("f-4m", whole(REP, 24, 300000), p, NULL);
+  /* Input above 1 MiB keeps the 4 MiB block size, and above one block it stays linked. */
+  p = def, p.bsid = LZ4F_max4MB, p.content_checksum = 1;
+  frame("f-4m-real", whole(MIX, 28, 1300000), p, NULL);
+  p = def, p.bsid = LZ4F_max1MB;
+  frame("f-1m-linked", whole(MIX, 29, 1100000), p, NULL);
+  p = def, p.content_checksum = 1;
+  frame_flush("f-flush-tiny", whole(MIX, 30, 100000), p, 100);
   p = def, p.content_checksum = 1;
   frame("f-lit-stored", whole(LIT, 25, 150000), p, NULL);
   p = def, p.level = 12, p.content_checksum = 1;
