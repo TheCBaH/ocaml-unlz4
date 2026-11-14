@@ -33,7 +33,10 @@ module Error : sig
       for raw blocks. *)
 
   val decoded_offset : t -> int64
-  (** Number of decoded bytes that precede the error. *)
+  (** Number of decoded bytes that precede the error. For an error inside a frame's block it
+      includes the bytes the block had decoded before the fault, which the frame decoder does not
+      deliver, so it can exceed [Frame.total_out]; [Block.decompress_into] leaves that prefix in
+      [dst]. *)
 
   val frame_index : t -> int option
   (** Zero-based index of the modern frame, when the error is inside one. *)
@@ -112,6 +115,7 @@ end
 module Block : sig
   val decompress_into :
     ?dictionary:Dictionary.t ->
+    ?prefix:int ->
     src:bytes ->
     src_off:int ->
     src_len:int ->
@@ -122,14 +126,33 @@ module Block : sig
     (int, Error.t) result
   (** Decodes exactly [src.[src_off .. src_off + src_len - 1]] into [dst] from [dst_off], writing
       at most [dst_len] bytes, and returns the number written. [dictionary] is the history that
-      precedes the block (for linked blocks, the tail of the previously decoded data). Errors:
+      precedes the block (for linked blocks, the tail of the previously decoded data). [prefix]
+      (default 0, at most [dst_off]) is the number of bytes of history already in [dst] just before
+      [dst_off], of which the last 64 KiB can be referenced; with linked blocks decoded into one
+      buffer it replaces passing a [dictionary] per block. Errors:
       [Invalid_block], [Truncated_input], or [Limit_exceeded] when the output does not fit. On
       error [dst.[dst_off ..]] may hold a decoded prefix; bytes outside the range are untouched.
-      Raises [Invalid_argument] for bad ranges or when [src == dst]. *)
+      Raises [Invalid_argument] for bad ranges, an invalid [prefix], or when [src == dst]. *)
+
+  val decompress_string_into :
+    ?dictionary:Dictionary.t ->
+    ?prefix:int ->
+    src:string ->
+    src_off:int ->
+    src_len:int ->
+    dst:bytes ->
+    dst_off:int ->
+    dst_len:int ->
+    unit ->
+    (int, Error.t) result
+  (** {!decompress_into} reading its input from a string without copying it. This is sound because
+      the decoder never writes [src] and a [dst] that is not [src] cannot alias a string; the
+      [src == dst] check still applies to the underlying buffer. *)
 
   val decompress : ?dictionary:Dictionary.t -> max_output:int -> string -> (string, Error.t) result
   (** [decompress ~max_output s] decodes the block [s] whose decoded size is at most
-      [max_output]. *)
+      [max_output]. A buffer of [max_output] bytes is allocated up front, so keep it a tight
+      bound for untrusted input. *)
 end
 
 (** The LZ4 frame format, decoded incrementally. *)
@@ -189,7 +212,26 @@ module Frame : sig
       unconsumed rest. Decoded output can be delivered before a later content checksum or size
       error; success is only established by [Frame_end]/[Stream_end]. Errors are terminal: later
       calls return the same error, whatever [eof] they pass. Terminal statuses are sticky. Raises [Invalid_argument] for bad
-      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned) (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
+      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
+
+  val decode_string :
+    t ->
+    src:string ->
+    src_off:int ->
+    src_len:int ->
+    eof:bool ->
+    dst:bytes ->
+    dst_off:int ->
+    dst_len:int ->
+    unit ->
+    (progress, Error.t) result
+  (** {!decode} reading its input from a string without copying it; the decoder never writes its
+      source, so this is sound. *)
+
+  val reset : t -> unit
+  (** Returns [t] to its state after {!create} (same limits, mode, dictionary and resolver),
+      clearing errors, counters and a decoder disabled by an exception, but keeping its buffers for
+      reuse. *)
 
   val info : t -> info option
   (** The descriptor of the current or last modern frame. *)
@@ -214,11 +256,16 @@ module Frame : sig
     ?limits:Limits.t ->
     ?dictionary:Dictionary.t ->
     ?resolve_dictionary:(int32 -> Dictionary.t option) ->
+    ?buffer_size:int ->
     read:(bytes -> int -> int -> int) ->
     write:(bytes -> int -> int -> unit) ->
     unit ->
     (unit, Error.t) result
   (** Decodes a concatenated stream from a blocking source to a sink, with bounded memory.
+      [buffer_size] (default 64 KiB, at least 1) sizes the input and output buffers. A block is
+      decoded in place, without being collected first, when the buffer holds the whole block and its
+      checksum, so a size of the frame's block maximum plus 8 or more gives the decoder more such
+      chances; a smaller buffer still decodes correctly.
       [read buf off len] stores at most [len] bytes at [buf.[off]] and returns their number, [0]
       meaning end of input, like [Stdlib.input]; it is not called again after [0]. [write buf off
       len] receives decoded bytes, valid only during the call. [read] is called only when the

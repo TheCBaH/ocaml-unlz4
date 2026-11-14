@@ -66,6 +66,7 @@ type t = {
   mutable frame_out : int64;
   mutable block_index : int;
   hash : Xxh32.t;
+  scratch : Xxh32.t;  (** For descriptor and block checksums, so they allocate no state. *)
   (* The current block. *)
   mutable stored : bool;
   mutable bsize : int;
@@ -80,6 +81,9 @@ type t = {
 }
 
 let window = Dictionary.window
+
+(* Extra room in a linked frame's buffer, so the history is moved once per this much output. *)
+let slide_slack = 2 * window
 let magic_modern = 0x184D2204l
 let magic_legacy = 0x184C2102l
 
@@ -115,6 +119,7 @@ let create ?(limits = Limits.default) ?(mode = Concatenated) ?dictionary ?resolv
     frame_out = 0L;
     block_index = 0;
     hash = Xxh32.create ();
+    scratch = Xxh32.create ();
     stored = false;
     bsize = 0;
     block_at = 0L;
@@ -126,6 +131,40 @@ let create ?(limits = Limits.default) ?(mode = Concatenated) ?dictionary ?resolv
     out_end = 0;
     skip_left = 0L;
   }
+
+let reset t =
+  t.phase <- Magic;
+  t.error <- None;
+  t.poisoned <- false;
+  t.hdr_len <- 0;
+  t.hdr_need <- 4;
+  t.field_at <- 0L;
+  t.total_in <- 0L;
+  t.total_out <- 0L;
+  t.decoded <- 0L;
+  t.frames <- 0L;
+  t.modern <- 0;
+  t.skipped <- 0L;
+  t.seen_frame <- false;
+  t.eof_seen <- false;
+  t.eof_remaining <- 0;
+  t.info <- None;
+  t.desc_at <- 0L;
+  t.block_max <- 0;
+  t.independent <- false;
+  t.block_checksum <- false;
+  t.content_checksum <- false;
+  t.content_size <- None;
+  t.frame_out <- 0L;
+  t.block_index <- 0;
+  t.stored <- false;
+  t.bsize <- 0;
+  t.block_at <- 0L;
+  t.cfill <- 0;
+  t.hist_len <- 0;
+  t.out_pos <- 0;
+  t.out_end <- 0;
+  t.skip_left <- 0L
 
 let info t = t.info
 let total_in t = t.total_in
@@ -153,6 +192,11 @@ let get32 b i =
 
 let u32_to_int64 v = Int64.logand (Int64.of_int32 v) 0xFFFFFFFFL
 
+let hash_range t b off len =
+  Xxh32.reset t.scratch;
+  Xxh32.update t.scratch b off len;
+  Xxh32.digest t.scratch
+
 let start_field t at need =
   t.hdr_len <- 0;
   t.hdr_need <- need;
@@ -161,7 +205,7 @@ let start_field t at need =
 (* Allocates the frame buffers and seeds the history once the descriptor is accepted. *)
 let start_blocks t (dict : Dictionary.t) =
   let dlen = Bytes.length dict.data in
-  let need = (if t.independent then dlen else window) + t.block_max in
+  let need = if t.independent then dlen + t.block_max else window + t.block_max + slide_slack in
   if Bytes.length t.win < need then t.win <- Buf.create need;
   Bytes.blit dict.data 0 t.win 0 dlen;
   t.hist_len <- dlen;
@@ -201,7 +245,7 @@ let parse_flags t =
 let accept_descriptor t =
   let len = t.hdr_len in
   let flg = Char.code (Bytes.get t.hdr 0) and bd = Char.code (Bytes.get t.hdr 1) in
-  let hc = (Int32.to_int (Xxh32.bytes t.hdr 0 (len - 1)) lsr 8) land 0xFF in
+  let hc = (Int32.to_int (hash_range t t.hdr 0 (len - 1)) lsr 8) land 0xFF in
   if hc <> Char.code (Bytes.get t.hdr (len - 1)) then
     stop t Error.Checksum_mismatch
       (Int64.add t.desc_at (Int64.of_int (len - 1)))
@@ -287,7 +331,7 @@ let decode_block t src off =
 let finish_block t =
   (if not t.independent then
      let e = t.out_end in
-     if e > window then (
+     if e + t.block_max > Bytes.length t.win then (
        Bytes.blit t.win (e - window) t.win 0 window;
        t.hist_len <- window)
      else t.hist_len <- e);
@@ -295,7 +339,7 @@ let finish_block t =
   t.phase <- Block_header
 
 let verify_block_checksum t data off expected at =
-  if not (Int32.equal (Xxh32.bytes data off t.bsize) expected) then
+  if not (Int32.equal (hash_range t data off t.bsize) expected) then
     stop ~block:true t Error.Checksum_mismatch at "block checksum mismatch"
 
 let frame_done t =
@@ -421,7 +465,8 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
                   decode_block t src off;
                   step ())
                 else (
-                  if Bytes.length t.cbuf < t.block_max then t.cbuf <- Buf.create t.block_max;
+                  if Bytes.length t.cbuf < t.bsize then
+                    t.cbuf <- Buf.create (min t.block_max (max t.bsize (2 * Bytes.length t.cbuf)));
                   t.cfill <- 0;
                   t.field_at <- t.block_at;
                   t.phase <- Block_payload;
@@ -507,6 +552,9 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
           t.poisoned <- true;
           raise e)
 
+let decode_string t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
+  decode t ~src:(Bytes.unsafe_of_string src) ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len ()
+
 (* Pulls input through [read] into [inb] and pushes output through [write]. Input is read only
    when the decoder needs it, so pending output is delivered before [read] can block. One self
    tail-recursive loop, which js_of_ocaml and Melange compile to a loop. *)
@@ -537,9 +585,24 @@ let drive t ~inb ~out ~read ~write =
 
 let chunk = 65536
 
-let decompress_with ?limits ?dictionary ?resolve_dictionary ~read ~write () =
+let decompress_with ?limits ?dictionary ?resolve_dictionary ?(buffer_size = chunk) ~read ~write () =
+  if buffer_size < 1 then invalid_arg "Unlz4.Frame.decompress_with: invalid buffer_size";
   let t = create ?limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
-  drive t ~inb:(Buf.create chunk) ~out:(Buf.create chunk) ~read ~write
+  drive t ~inb:(Buf.create buffer_size) ~out:(Buf.create buffer_size) ~read ~write
+
+(* The content size the first frame declares, when it is a plausible size for a pre-sized buffer. *)
+let declared_size s limits =
+  let cap = Int64.of_int (min (1 lsl 24) Sys.max_string_length) in
+  if String.length s >= 14 && Char.code s.[4] land 0x08 <> 0 then
+    let b = Bytes.unsafe_of_string s in
+    if Int32.equal (get32 b 0) magic_modern then
+      let lo = u32_to_int64 (get32 b 6) and hi = get32 b 10 in
+      let n = Int64.logor lo (Int64.shift_left (Int64.of_int32 hi) 32) in
+      if Int32.equal hi 0l && Int64.compare n 0L > 0 then
+        Int64.to_int (min n (min cap limits.Limits.max_output))
+      else 0
+    else 0
+  else 0
 
 let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
   let cap = Int64.of_int Sys.max_string_length in
@@ -548,20 +611,21 @@ let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
     else limits
   in
   let t = create ~limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
-  (* The whole input in one read, so payloads decode in place. *)
+  (* The whole input in one read, so payloads decode in place. The decoder never writes its source
+     and the output buffer is separate, so [s] is read without a copy. *)
   let pending = ref true in
-  let read b off _ =
+  let read _ _ _ =
     if !pending then (
       pending := false;
-      Bytes.blit_string s 0 b off (String.length s);
       String.length s)
     else 0
   in
-  let out = Buffer.create (min ((String.length s * 2) + 16) (1 lsl 20)) in
+  let out =
+    Buffer.create (max (min ((String.length s * 2) + 16) (1 lsl 20)) (declared_size s limits))
+  in
   match
-    drive t
-      ~inb:(Buf.create (max 1 (String.length s)))
-      ~out:(Buf.create chunk) ~read ~write:(Buffer.add_subbytes out)
+    drive t ~inb:(Bytes.unsafe_of_string s) ~out:(Buf.create chunk) ~read
+      ~write:(Buffer.add_subbytes out)
   with
   | Ok () -> Ok (Buffer.contents out)
   | Error e -> Error e

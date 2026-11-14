@@ -5,6 +5,7 @@ open Unlz4_test_support
 open Harness
 module B = Unlz4.Block
 module E = Unlz4.Error
+module C = Corpus
 
 let kind_name k = show_kind k
 
@@ -166,6 +167,39 @@ let cases =
         raises_invalid_arg (fun () ->
             B.decompress_into ~src:b ~src_off:0 ~src_len:1 ~dst:b ~dst_off:0 ~dst_len:1 ());
         raises_invalid_arg (fun () -> B.decompress ~max_output:(-1) "\x00"));
+    case "block: prefix replaces a per-block dictionary for linked blocks" (fun () ->
+        let linked =
+          List.filter
+            (fun f -> String.length f.C.name > 9 && String.sub f.C.name 0 9 = "b-linked-")
+            C.blocks
+        in
+        check ~msg:"fixtures" (List.length linked = 4);
+        let plain = String.concat "" (List.map (fun f -> Lazy.force f.C.plain) linked) in
+        let dst = Bytes.create (String.length plain) in
+        let off = ref 0 in
+        List.iter
+          (fun f ->
+            let src = Bytes.of_string f.C.compressed in
+            let want = String.length (Lazy.force f.C.plain) in
+            match
+              B.decompress_into ~prefix:!off ~src ~src_off:0 ~src_len:(Bytes.length src) ~dst
+                ~dst_off:!off ~dst_len:want ()
+            with
+            | Ok n -> off := !off + n
+            | Error e -> failf "%s: %s" f.C.name (show_error e))
+          linked;
+        check_string ~expected:plain (Bytes.to_string dst);
+        (* Without the prefix the first reference into history is rejected. *)
+        let f1 = List.nth linked 1 in
+        let src = Bytes.of_string f1.C.compressed in
+        (match
+           B.decompress_into ~src ~src_off:0 ~src_len:(Bytes.length src) ~dst ~dst_off:50000
+             ~dst_len:50000 ()
+         with
+        | Ok _ -> failf "decoded without history"
+        | Error e -> check ~msg:"kind" (E.kind e = E.Invalid_block));
+        raises_invalid_arg (fun () ->
+            B.decompress_into ~prefix:1 ~src ~src_off:0 ~src_len:1 ~dst ~dst_off:0 ~dst_len:1 ()));
     case "block: error offsets" (fun () ->
         let block = Builder.block [ ("abcd", Some (0, 4)); (tail, None) ] in
         match B.decompress ~max_output:100 block with
