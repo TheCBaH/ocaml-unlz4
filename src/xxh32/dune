@@ -1,0 +1,9 @@
+; XXH32, the checksum of the LZ4 frame format. A separate library so the main interface carries no
+; test-only module; only the tests link it directly.
+
+(library
+ (name unlz4_private)
+ (public_name unlz4.private)
+ (wrapped false)
+ (enabled_if
+  (<> %{env:UNLZ4_MELANGE=false} true)))

@@ -4,7 +4,7 @@
 (* Encoders for handcrafted test inputs: LZ4 sequences, blocks and frames written independently of
    any compressor, so tests can cover patterns a compressor never emits. *)
 
-let xxh32 s = Unlz4.Private.Xxh32.string s
+let xxh32 s = Xxh32.string s
 
 let add_u32 b v =
   for i = 0 to 3 do

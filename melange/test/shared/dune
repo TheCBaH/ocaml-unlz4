@@ -3,6 +3,6 @@
 (library
  (name unlz4_tests)
  (modes melange)
- (libraries unlz4 unlz4_test_support)
+ (libraries unlz4 unlz4.private unlz4_test_support)
  (enabled_if
   (= %{env:UNLZ4_MELANGE=false} true)))

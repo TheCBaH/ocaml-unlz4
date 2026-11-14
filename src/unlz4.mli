@@ -276,17 +276,3 @@ module Frame : sig
 
       For channels: [decompress_with ~read:(input ic) ~write:(output oc) ()]. *)
 end
-
-(** Not part of the stable API; exposed for tests. *)
-module Private : sig
-  module Xxh32 : sig
-    type t
-
-    val create : unit -> t
-    val reset : t -> unit
-    val update : t -> bytes -> int -> int -> unit
-    val digest : t -> int32
-    val bytes : bytes -> int -> int -> int32
-    val string : string -> int32
-  end
-end

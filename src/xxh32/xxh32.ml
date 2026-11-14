@@ -9,15 +9,9 @@ let p2 = 0x85EBCA77l
 let p3 = 0xC2B2AE3Dl
 let p4 = 0x27D4EB2Fl
 let p5 = 0x165667B1l
-let rotl x r = Int32.logor (Int32.shift_left x r) (Int32.shift_right_logical x (32 - r))
-
-let get32 b i =
-  let byte k = Char.code (Bytes.get b (i + k)) in
-  Int32.logor
-    (Int32.of_int (byte 0 lor (byte 1 lsl 8) lor (byte 2 lsl 16)))
-    (Int32.shift_left (Int32.of_int (byte 3)) 24)
-
-let round acc input = Int32.mul (rotl (Int32.add acc (Int32.mul input p2)) 13) p1
+let[@inline] rotl x r = Int32.logor (Int32.shift_left x r) (Int32.shift_right_logical x (32 - r))
+let[@inline] get32 b i = Bytes.get_int32_le b i
+let[@inline] round acc input = Int32.mul (rotl (Int32.add acc (Int32.mul input p2)) 13) p1
 
 type t = {
   mutable v1 : int32;

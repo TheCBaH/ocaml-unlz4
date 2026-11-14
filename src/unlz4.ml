@@ -88,7 +88,3 @@ module Block = struct
 end
 
 module Frame = Frame_decoder
-
-module Private = struct
-  module Xxh32 = Xxh32
-end

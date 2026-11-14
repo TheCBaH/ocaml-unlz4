@@ -3,7 +3,7 @@
 
 open Unlz4_test_support
 open Harness
-module X = Unlz4.Private.Xxh32
+module X = Xxh32
 
 (* Published XXH32 values (seed 0). Upstream-generated vectors at stripe boundaries are checked by
    the corpus suite. *)

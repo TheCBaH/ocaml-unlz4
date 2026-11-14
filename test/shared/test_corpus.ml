@@ -48,19 +48,16 @@ let cases =
         List.iter
           (fun (data, v) ->
             let n = String.length data in
-            check_int32 ~msg:(Printf.sprintf "length %d" n) ~expected:v
-              (Unlz4.Private.Xxh32.string data);
-            let h = Unlz4.Private.Xxh32.create () in
+            check_int32 ~msg:(Printf.sprintf "length %d" n) ~expected:v (Xxh32.string data);
+            let h = Xxh32.create () in
             let b = Bytes.of_string data in
             let pos = ref 0 in
             while !pos < n do
               let k = min (n - !pos) (Gen.below r 40) in
-              Unlz4.Private.Xxh32.update h b !pos k;
+              Xxh32.update h b !pos k;
               pos := !pos + k
             done;
-            check_int32
-              ~msg:(Printf.sprintf "chunked length %d" n)
-              ~expected:v (Unlz4.Private.Xxh32.digest h))
+            check_int32 ~msg:(Printf.sprintf "chunked length %d" n) ~expected:v (Xxh32.digest h))
           C.xxh32_vectors);
     case "corpus: raw blocks" (fun () ->
         List.iter
