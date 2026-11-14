@@ -184,7 +184,12 @@ module Frame : sig
       unconsumed rest. Decoded output can be delivered before a later content checksum or size
       error; success is only established by [Frame_end]/[Stream_end]. Errors are terminal: later
       calls return the same error, whatever [eof] they pass. Terminal statuses are sticky. Raises [Invalid_argument] for bad
-      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned) (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
+      ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
+
+  val reset : t -> unit
+  (** Returns [t] to its state after {!create} (same limits, mode, dictionary and resolver),
+      clearing errors, counters and a decoder disabled by an exception, but keeping its buffers for
+      reuse. *)
 
   val info : t -> info option
   (** The descriptor of the current or last modern frame. *)
@@ -209,11 +214,16 @@ module Frame : sig
     ?limits:Limits.t ->
     ?dictionary:Dictionary.t ->
     ?resolve_dictionary:(int32 -> Dictionary.t option) ->
+    ?buffer_size:int ->
     read:(bytes -> int -> int -> int) ->
     write:(bytes -> int -> int -> unit) ->
     unit ->
     (unit, Error.t) result
   (** Decodes a concatenated stream from a blocking source to a sink, with bounded memory.
+      [buffer_size] (default 64 KiB, at least 1) sizes the input and output buffers. A block is
+      decoded in place, without being collected first, when the buffer holds the whole block and its
+      checksum, so a size of the frame's block maximum plus 8 or more gives the decoder more such
+      chances; a smaller buffer still decodes correctly.
       [read buf off len] stores at most [len] bytes at [buf.[off]] and returns their number, [0]
       meaning end of input, like [Stdlib.input]; it is not called again after [0]. [write buf off
       len] receives decoded bytes, valid only during the call. [read] is called only when the

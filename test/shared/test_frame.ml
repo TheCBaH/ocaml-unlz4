@@ -314,6 +314,55 @@ let cases =
         match F.decompress src with
         | Ok s -> check_string ~expected s
         | Error e -> failf "%s" (show_error e));
+    case "frame: reset reuses a decoder" (fun () ->
+        let d = F.create () in
+        let run src =
+          let dst = Bytes.create 64 in
+          F.decode d ~src:(Bytes.of_string src) ~src_off:0 ~src_len:(String.length src) ~eof:true
+            ~dst ~dst_off:0 ~dst_len:64 ()
+          |> Result.map (fun p -> Bytes.sub_string dst 0 p.F.produced)
+        in
+        (match run hello with
+        | Ok s -> check_string ~expected:"hello, world" s
+        | Error e -> failf "%s" (show_error e));
+        F.reset d;
+        check_int64 ~msg:"total_in" ~expected:0L (F.total_in d);
+        (match run "junk" with Error _ -> () | Ok _ -> failf "garbage accepted");
+        F.reset d;
+        match run hello with
+        | Ok s -> check_string ~expected:"hello, world" s
+        | Error e -> failf "after error: %s" (show_error e));
+    case "frame: decompress_with buffer sizes" (fun () ->
+        let f = List.find (fun f -> f.Corpus.name = "f-64k-linked") Corpus.frames in
+        let expected = Lazy.force f.Corpus.plain in
+        List.iter
+          (fun buffer_size ->
+            let pos = ref 0 and out = Buffer.create 1024 in
+            let read b off len =
+              let n = min len (String.length f.Corpus.compressed - !pos) in
+              Bytes.blit_string f.Corpus.compressed !pos b off n;
+              pos := !pos + n;
+              n
+            in
+            match F.decompress_with ~buffer_size ~read ~write:(Buffer.add_subbytes out) () with
+            | Ok () -> check_string ~msg:(string_of_int buffer_size) ~expected (Buffer.contents out)
+            | Error e -> failf "%d: %s" buffer_size (show_error e))
+          [ 1; 7; 100; 4096; 70000 ];
+        raises_invalid_arg (fun () ->
+            F.decompress_with ~buffer_size:0 ~read:(fun _ _ _ -> 0) ~write:(fun _ _ _ -> ()) ()));
+    case "frame: fragmented input of a 4 MiB-block frame does not allocate a 4 MiB collector"
+      (fun () ->
+        (* Native only: other backends do not report allocation. *)
+        if Sys.backend_type = Sys.Native then (
+          let src =
+            Builder.frame
+              ~f:{ b with independent = true; bd_code = 7 }
+              [ Builder.Compressed (lb "hello"); Builder.Compressed (lb "world") ]
+          in
+          let before = Gc.allocated_bytes () in
+          check_string ~expected:"helloworld" (D.ok ~chunk:(fun _ -> 1) src);
+          let words = (Gc.allocated_bytes () -. before) /. 1048576. in
+          check ~msg:(Printf.sprintf "allocated %.1f MiB" words) (words < 6.)));
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded

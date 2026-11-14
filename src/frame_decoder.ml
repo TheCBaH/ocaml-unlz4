@@ -130,6 +130,40 @@ let create ?(limits = Limits.default) ?(mode = Concatenated) ?dictionary ?resolv
     skip_left = 0L;
   }
 
+let reset t =
+  t.phase <- Magic;
+  t.error <- None;
+  t.poisoned <- false;
+  t.hdr_len <- 0;
+  t.hdr_need <- 4;
+  t.field_at <- 0L;
+  t.total_in <- 0L;
+  t.total_out <- 0L;
+  t.decoded <- 0L;
+  t.frames <- 0L;
+  t.modern <- 0;
+  t.skipped <- 0L;
+  t.seen_frame <- false;
+  t.eof_seen <- false;
+  t.eof_remaining <- 0;
+  t.info <- None;
+  t.desc_at <- 0L;
+  t.block_max <- 0;
+  t.independent <- false;
+  t.block_checksum <- false;
+  t.content_checksum <- false;
+  t.content_size <- None;
+  t.frame_out <- 0L;
+  t.block_index <- 0;
+  t.stored <- false;
+  t.bsize <- 0;
+  t.block_at <- 0L;
+  t.cfill <- 0;
+  t.hist_len <- 0;
+  t.out_pos <- 0;
+  t.out_end <- 0;
+  t.skip_left <- 0L
+
 let info t = t.info
 let total_in t = t.total_in
 let total_out t = t.total_out
@@ -424,7 +458,8 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
                   decode_block t src off;
                   step ())
                 else (
-                  if Bytes.length t.cbuf < t.block_max then t.cbuf <- Buf.create t.block_max;
+                  if Bytes.length t.cbuf < t.bsize then
+                    t.cbuf <- Buf.create (min t.block_max (max t.bsize (2 * Bytes.length t.cbuf)));
                   t.cfill <- 0;
                   t.field_at <- t.block_at;
                   t.phase <- Block_payload;
@@ -540,9 +575,10 @@ let drive t ~inb ~out ~read ~write =
 
 let chunk = 65536
 
-let decompress_with ?limits ?dictionary ?resolve_dictionary ~read ~write () =
+let decompress_with ?limits ?dictionary ?resolve_dictionary ?(buffer_size = chunk) ~read ~write () =
+  if buffer_size < 1 then invalid_arg "Unlz4.Frame.decompress_with: invalid buffer_size";
   let t = create ?limits ~mode:Concatenated ?dictionary ?resolve_dictionary () in
-  drive t ~inb:(Buf.create chunk) ~out:(Buf.create chunk) ~read ~write
+  drive t ~inb:(Buf.create buffer_size) ~out:(Buf.create buffer_size) ~read ~write
 
 let decompress ?(limits = Limits.default) ?dictionary ?resolve_dictionary s =
   let cap = Int64.of_int Sys.max_string_length in
