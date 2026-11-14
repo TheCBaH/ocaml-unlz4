@@ -32,8 +32,14 @@ let frames ?(mode = F.Concatenated) ?limits ?dictionary ?resolve_dictionary
         let produced =
           Int64.to_int (Int64.sub (F.total_out d) (Int64.of_int (Buffer.length out)))
         in
+        if produced < 0 || produced > cap then Harness.failf "error produced %d > %d" produced cap;
+        if Bytes.get dst 0 <> '#' || Bytes.get dst (cap + 1) <> '#' then
+          Harness.failf "wrote outside the output range (error)";
         Buffer.add_subbytes out dst 1 produced;
-        { output = Buffer.contents out; result = Error e; consumed = !pos }
+        let total_in = Int64.to_int (F.total_in d) in
+        if total_in < !pos || total_in > !delivered then
+          Harness.failf "error consumed to %d, outside %d..%d" total_in !pos !delivered;
+        { output = Buffer.contents out; result = Error e; consumed = total_in }
     | Ok { consumed; produced; status } -> (
         if consumed < 0 || consumed > !delivered - !pos then Harness.failf "consumed %d" consumed;
         if produced < 0 || produced > cap then Harness.failf "produced %d > %d" produced cap;
