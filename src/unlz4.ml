@@ -71,6 +71,10 @@ module Block = struct
             message;
           }
 
+  let decompress_string_into ?dictionary ?prefix ~src ~src_off ~src_len ~dst ~dst_off ~dst_len () =
+    decompress_into ?dictionary ?prefix ~src:(Bytes.unsafe_of_string src) ~src_off ~src_len ~dst
+      ~dst_off ~dst_len ()
+
   let decompress ?dictionary ~max_output s =
     if max_output < 0 then invalid_arg "Unlz4.Block.decompress: negative max_output";
     (* The decoder never writes [src], and [dst] is a fresh buffer, so [s] needs no copy. *)

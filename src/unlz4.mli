@@ -121,6 +121,21 @@ module Block : sig
       error [dst.[dst_off ..]] may hold a decoded prefix; bytes outside the range are untouched.
       Raises [Invalid_argument] for bad ranges, an invalid [prefix], or when [src == dst]. *)
 
+  val decompress_string_into :
+    ?dictionary:Dictionary.t ->
+    ?prefix:int ->
+    src:string ->
+    src_off:int ->
+    src_len:int ->
+    dst:bytes ->
+    dst_off:int ->
+    dst_len:int ->
+    unit ->
+    (int, Error.t) result
+  (** {!decompress_into} reading its input from a string without copying it. This is sound because
+      the decoder never writes [src] and a [dst] that is not [src] cannot alias a string; the
+      [src == dst] check still applies to the underlying buffer. *)
+
   val decompress : ?dictionary:Dictionary.t -> max_output:int -> string -> (string, Error.t) result
   (** [decompress ~max_output s] decodes the block [s] whose decoded size is at most
       [max_output]. A buffer of [max_output] bytes is allocated up front, so keep it a tight
@@ -185,6 +200,20 @@ module Frame : sig
       error; success is only established by [Frame_end]/[Stream_end]. Errors are terminal: later
       calls return the same error, whatever [eof] they pass. Terminal statuses are sticky. Raises [Invalid_argument] for bad
       ranges, [src == dst], or a violated [eof] contract (checked after a sticky error is returned). An exception raised by a [resolve_dictionary] callback, or [Out_of_memory] while allocating buffers, propagates after the call's progress is counted in [total_in]/[total_out]; the decoder is then unusable and later calls raise [Invalid_argument]. *)
+
+  val decode_string :
+    t ->
+    src:string ->
+    src_off:int ->
+    src_len:int ->
+    eof:bool ->
+    dst:bytes ->
+    dst_off:int ->
+    dst_len:int ->
+    unit ->
+    (progress, Error.t) result
+  (** {!decode} reading its input from a string without copying it; the decoder never writes its
+      source, so this is sound. *)
 
   val reset : t -> unit
   (** Returns [t] to its state after {!create} (same limits, mode, dictionary and resolver),

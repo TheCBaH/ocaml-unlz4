@@ -66,6 +66,7 @@ type t = {
   mutable frame_out : int64;
   mutable block_index : int;
   hash : Xxh32.t;
+  scratch : Xxh32.t;  (** For descriptor and block checksums, so they allocate no state. *)
   (* The current block. *)
   mutable stored : bool;
   mutable bsize : int;
@@ -118,6 +119,7 @@ let create ?(limits = Limits.default) ?(mode = Concatenated) ?dictionary ?resolv
     frame_out = 0L;
     block_index = 0;
     hash = Xxh32.create ();
+    scratch = Xxh32.create ();
     stored = false;
     bsize = 0;
     block_at = 0L;
@@ -190,6 +192,11 @@ let get32 b i =
 
 let u32_to_int64 v = Int64.logand (Int64.of_int32 v) 0xFFFFFFFFL
 
+let hash_range t b off len =
+  Xxh32.reset t.scratch;
+  Xxh32.update t.scratch b off len;
+  Xxh32.digest t.scratch
+
 let start_field t at need =
   t.hdr_len <- 0;
   t.hdr_need <- need;
@@ -238,7 +245,7 @@ let parse_flags t =
 let accept_descriptor t =
   let len = t.hdr_len in
   let flg = Char.code (Bytes.get t.hdr 0) and bd = Char.code (Bytes.get t.hdr 1) in
-  let hc = (Int32.to_int (Xxh32.bytes t.hdr 0 (len - 1)) lsr 8) land 0xFF in
+  let hc = (Int32.to_int (hash_range t t.hdr 0 (len - 1)) lsr 8) land 0xFF in
   if hc <> Char.code (Bytes.get t.hdr (len - 1)) then
     stop t Error.Checksum_mismatch
       (Int64.add t.desc_at (Int64.of_int (len - 1)))
@@ -332,7 +339,7 @@ let finish_block t =
   t.phase <- Block_header
 
 let verify_block_checksum t data off expected at =
-  if not (Int32.equal (Xxh32.bytes data off t.bsize) expected) then
+  if not (Int32.equal (hash_range t data off t.bsize) expected) then
     stop ~block:true t Error.Checksum_mismatch at "block checksum mismatch"
 
 let frame_done t =
@@ -544,6 +551,9 @@ let decode t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
           ignore (finish Need_input);
           t.poisoned <- true;
           raise e)
+
+let decode_string t ~src ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len () =
+  decode t ~src:(Bytes.unsafe_of_string src) ~src_off ~src_len ~eof ~dst ~dst_off ~dst_len ()
 
 (* Pulls input through [read] into [inb] and pushes output through [write]. Input is read only
    when the decoder needs it, so pending output is delivered before [read] can block. One self

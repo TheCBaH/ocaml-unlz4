@@ -363,6 +363,21 @@ let cases =
           check_string ~expected:"helloworld" (D.ok ~chunk:(fun _ -> 1) src);
           let words = (Gc.allocated_bytes () -. before) /. 1048576. in
           check ~msg:(Printf.sprintf "allocated %.1f MiB" words) (words < 6.)));
+    case "string sources decode like bytes" (fun () ->
+        let dst = Bytes.create 64 in
+        (match
+           F.decode_string (F.create ()) ~src:hello ~src_off:0 ~src_len:(String.length hello)
+             ~eof:true ~dst ~dst_off:0 ~dst_len:64 ()
+         with
+        | Ok p -> check_string ~expected:"hello, world" (Bytes.sub_string dst 0 p.F.produced)
+        | Error e -> failf "%s" (show_error e));
+        let block = Builder.literal_block "abcdefghijkl" in
+        match
+          Unlz4.Block.decompress_string_into ~src:block ~src_off:0 ~src_len:(String.length block)
+            ~dst ~dst_off:0 ~dst_len:64 ()
+        with
+        | Ok n -> check_string ~expected:"abcdefghijkl" (Bytes.sub_string dst 0 n)
+        | Error e -> failf "%s" (show_error e));
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded
