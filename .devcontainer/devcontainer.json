@@ -12,6 +12,7 @@
             "userGid": "1000",
             "upgradePackages": "false"
         },
+        "ghcr.io/devcontainers/features/sshd:1": {},
         "ghcr.io/thecbah/ocaml-features/ocaml:1": {
             // CI sets OCAML_VERSION per matrix leg. bytesrw is only for the examples/bytesrw adapter.
             "version": "${localEnv:OCAML_VERSION:4.14.4}",
@@ -29,7 +30,7 @@
         }
     },
     "remoteUser": "vscode",
-    // The vendor/lz4 submodule is needed by the tests (the corpus is generated from it); make deps
+    // The vendor/lz4 submodule is needed only by make reference-test and corpus-check; make deps
     // installs the opam dependencies.
     "postCreateCommand": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g) && git config --global --add safe.directory '*' && git submodule update --init && make deps",
     "waitFor": "postCreateCommand"

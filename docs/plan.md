@@ -54,7 +54,7 @@ fragmentation of small frames and output capacities 0/1.
 `test/reference/unlz4_ref.c`, an original C generator built against the
 submodule's `lib/`: raw default/fast/HC blocks, dictionary and linked blocks,
 frames with explicit preferences, decoded back with the safe C decoders before
-writing. `tools/` embeds the corpus into an OCaml module at build time and
+writing. The corpus is checked in under `test/corpus`; `tools/` embeds it into an OCaml module at build time and
 checks the manifest (SHA-256, lengths). Make targets `reference-build`,
 `reference-test` (bounded upstream `fuzzer`/`frametest`), `corpus-generate`,
 `corpus-check`.

@@ -1,8 +1,12 @@
-; The test corpus, generated at build time: unlz4_ref.c, compiled against the vendor/lz4
-; submodule's lib/, writes the compressed fixtures and manifest.txt into corpus/, decoding each
-; back with the upstream safe decoders first. Needs `git submodule update --init vendor/lz4`.
+; The reference build: unlz4_ref.c against the vendor/lz4 submodule generates the checked-in corpus
+; (test/corpus; `make corpus-generate` / `make corpus-check`), and the upstream fuzzer and
+; frametest run bounded under `make reference-test`. They are enabled only with
+; UNLZ4_REFERENCE=true (set by those targets), so a plain build needs neither the submodule nor a C
+; compiler.
 
 (rule
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true))
  (target unlz4_ref.exe)
  (deps
   (glob_files %{project_root}/vendor/lz4/lib/*.h))
@@ -19,16 +23,12 @@
    %{dep:../../vendor/lz4/lib/lz4frame.c}
    %{dep:../../vendor/lz4/lib/xxhash.c})))
 
-(rule
- (targets
-  (dir corpus))
- (action
-  (run %{dep:unlz4_ref.exe} corpus)))
-
 ; The upstream fuzzer and frametest, run bounded by `dune build @reference-test`: they validate the
 ; reference build, not this library.
 
 (rule
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true))
  (target fuzzer.exe)
  (deps
   (glob_files %{project_root}/vendor/lz4/lib/*.h)
@@ -49,6 +49,8 @@
    %{dep:../../vendor/lz4/lib/xxhash.c})))
 
 (rule
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true))
  (target frametest.exe)
  (deps
   (glob_files %{project_root}/vendor/lz4/lib/*.h)
@@ -70,6 +72,8 @@
    %{dep:../../vendor/lz4/lib/xxhash.c})))
 
 (rule
+ (enabled_if
+  (= %{env:UNLZ4_REFERENCE=false} true))
  (alias reference-test)
  (action
   (progn

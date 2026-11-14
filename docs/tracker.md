@@ -47,7 +47,7 @@ that change). The 32-bit legs (i386, arm/v7) run only in CI.
 | Corpus generation and manifest | done | 43 fixtures (29 blocks, 14 frames), 1.1 MB, 23 XXH32 vectors; plain text as recipes |
 | Corpus embedding and check | done | `tools/embed.ml`, `make corpus-check` (SHA256SUMS + sizes) |
 | Differential replay | done | `test/shared/test_corpus.ml`: fragmentation, concatenation, single mode, truncation, mutations |
-| `reference-test` (bounded upstream fuzzer/frametest) | done | Built out of tree; the submodule stays clean |
+| `reference-test` (bounded upstream fuzzer/frametest) | done | Built out of tree; enabled by `UNLZ4_REFERENCE=true`; also runs `corpus-check` |
 
 ## M4: JavaScript backends
 

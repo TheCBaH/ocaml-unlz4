@@ -5,7 +5,7 @@ UPSTREAM = vendor/lz4
 UPSTREAM_LIB = $(UPSTREAM)/lib
 
 .PHONY: deps build test test-js test-melange bench bench-js fmt fmt-check \
-	reference-test consumer-test release-test ci clean
+	test-counts reference-test corpus-generate corpus-check consumer-test release-test ci clean
 
 # bytesrw is not a dependency of unlz4: it only enables the examples/bytesrw adapter and its tests.
 deps:
@@ -26,6 +26,15 @@ test-js:
 test-melange:
 	UNLZ4_MELANGE=true $(DUNE) build @melange @runtest-melange
 
+# Reruns the shared suites on every backend and fails unless each ran the same number of cases.
+test-counts:
+	@count() { sed -n "s/^backend $$1: \([0-9]*\) cases.*/\1/p"; }; \
+	n=$$($(DUNE) build --force @runtest 2>&1 | count native); \
+	j=$$($(DUNE) build --force @runtest-jsoo 2>&1 | count jsoo); \
+	m=$$(UNLZ4_MELANGE=true $(DUNE) build --force @melange @runtest-melange 2>&1 | count melange); \
+	echo "cases: native=$$n jsoo=$$j melange=$$m"; \
+	test -n "$$n" && test "$$n" = "$$j" && test "$$n" = "$$m"
+
 bench:
 	$(DUNE) exec bench/bench.exe
 
@@ -39,16 +48,27 @@ fmt:
 fmt-check:
 	$(DUNE) build @fmt
 
-# The test corpus and the upstream fuzzer/frametest are built by dune (test/reference/dune) from
-# the vendor/lz4 submodule, so the tests need it initialized: git submodule update --init vendor/lz4
+# The test corpus is checked in (test/corpus). Regenerating it, and the upstream fuzzer/frametest,
+# need the vendor/lz4 submodule: git submodule update --init vendor/lz4
 
 $(UPSTREAM_LIB)/lz4.c:
 	@echo "vendor/lz4 is not initialized: git submodule update --init vendor/lz4" >&2
 	@exit 1
 
 # Bounded upstream self-tests: they validate the reference build, not this library.
-reference-test: $(UPSTREAM_LIB)/lz4.c
-	$(DUNE) build @reference-test
+reference-test: $(UPSTREAM_LIB)/lz4.c corpus-check
+	UNLZ4_REFERENCE=true $(DUNE) build @reference-test
+
+REF_EXE = _build/default/test/reference/unlz4_ref.exe
+
+corpus-generate: $(UPSTREAM_LIB)/lz4.c
+	UNLZ4_REFERENCE=true $(DUNE) build $(REF_EXE:_build/default/%=%)
+	rm -rf test/corpus && mkdir test/corpus && $(REF_EXE) test/corpus
+
+# Fails if the checked-in corpus differs from what the reference build generates.
+corpus-check: $(UPSTREAM_LIB)/lz4.c
+	UNLZ4_REFERENCE=true $(DUNE) build $(REF_EXE:_build/default/%=%)
+	rm -rf _build/_corpus && mkdir _build/_corpus && $(REF_EXE) _build/_corpus && diff -r _build/_corpus test/corpus; r=$$?; rm -rf _build/_corpus; exit $$r
 
 # Installs the package into a temporary prefix and builds a project that only knows it by its
 # public name.
@@ -61,13 +81,11 @@ consumer-test:
 	  $(DUNE) build --root . ./consumer.exe && ./_build/default/consumer.exe
 	rm -rf _consumer
 
-# Builds and tests a copy of the tracked (and new, unignored) files plus the vendor/lz4 submodule's:
-# what a release archive must contain for its tests to run.
-release-test: $(UPSTREAM_LIB)/lz4.c
+# Builds and tests the committed tree exactly as a release archive holds it: no submodule, so the
+# tests must run from the checked-in corpus alone.
+release-test:
 	rm -rf _release && mkdir -p _release
-	{ git ls-files -z --cached --others --exclude-standard | grep -z -v -x '$(UPSTREAM)'; \
-	  git -C $(UPSTREAM) ls-files -z | sed -z 's|^|$(UPSTREAM)/|'; } | \
-	  xargs -0 cp --parents -t _release
+	git archive HEAD | tar -x -C _release
 	cd _release && $(DUNE) build -p unlz4 @install @runtest
 	rm -rf _release
 
