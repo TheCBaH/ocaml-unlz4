@@ -22,6 +22,7 @@ let linked_frame ?(independent = false) () =
 
 let frame_of ?(f = b) s = Builder.frame ~f ~content:s [ Builder.Compressed (lb s) ]
 let hello = frame_of "hello, world"
+let tail_lits = "0123456789ab"
 
 let check_kind kind e =
   if E.kind e <> kind then failf "expected %s, got %s" (show_kind kind) (show_error e)
@@ -378,6 +379,19 @@ let cases =
         with
         | Ok n -> check_string ~expected:"abcdefghijkl" (Bytes.sub_string dst 0 n)
         | Error e -> failf "%s" (show_error e));
+    case "frame: block error decoded_offset counts the undelivered prefix" (fun () ->
+        let bad = Builder.block [ ("abcd", Some (9, 4)); (tail_lits, None) ] in
+        let src = Builder.frame [ Builder.Compressed bad ] in
+        let d = F.create () in
+        let dst = Bytes.create 64 in
+        match
+          F.decode d ~src:(Bytes.of_string src) ~src_off:0 ~src_len:(String.length src) ~eof:true
+            ~dst ~dst_off:0 ~dst_len:64 ()
+        with
+        | Ok _ -> failf "accepted"
+        | Error e ->
+            check_int64 ~msg:"decoded_offset" ~expected:4L (E.decoded_offset e);
+            check_int64 ~msg:"total_out" ~expected:0L (F.total_out d));
     case "frame: limits" (fun () ->
         let l = Unlz4.Limits.make in
         D.fails ~limits:(l ~max_block_size:65536 ()) E.Limit_exceeded

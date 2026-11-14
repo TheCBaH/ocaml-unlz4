@@ -33,7 +33,10 @@ module Error : sig
       for raw blocks. *)
 
   val decoded_offset : t -> int64
-  (** Number of decoded bytes that precede the error. *)
+  (** Number of decoded bytes that precede the error. For an error inside a frame's block it
+      includes the bytes the block had decoded before the fault, which the frame decoder does not
+      deliver, so it can exceed [Frame.total_out]; [Block.decompress_into] leaves that prefix in
+      [dst]. *)
 
   val frame_index : t -> int option
   (** Zero-based index of the modern frame, when the error is inside one. *)
